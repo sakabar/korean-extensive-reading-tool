@@ -314,7 +314,102 @@ describe('App', () => {
     expect(slash.compareDocumentPosition(nextWord) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it('does not add a slash when no break exists before the next content word', async () => {
+  it('places a slash at the next space even when content words continue before it', () => {
+    window.localStorage.setItem(
+      'korean-extensive-reading-tool:v1',
+      JSON.stringify({
+        rawText: '읽고다음 문장',
+        tokens: [
+          {
+            id: '0-0-읽',
+            index: 0,
+            text: '읽',
+            normalizedSurface: '읽다',
+            dictionaryForm: '읽다',
+            pos: 'Verb',
+            posCategory: 'content',
+            isMarkable: true,
+            isWordLike: true,
+            offset: 0,
+            length: 1,
+          },
+          {
+            id: '1-1-고',
+            index: 1,
+            text: '고',
+            normalizedSurface: '고',
+            dictionaryForm: '고',
+            pos: 'Eomi',
+            posCategory: 'excluded',
+            isMarkable: false,
+            isWordLike: true,
+            offset: 1,
+            length: 1,
+          },
+          {
+            id: '2-2-다음',
+            index: 2,
+            text: '다음',
+            normalizedSurface: '다음',
+            dictionaryForm: '다음',
+            pos: 'Noun',
+            posCategory: 'content',
+            isMarkable: true,
+            isWordLike: true,
+            offset: 2,
+            length: 2,
+          },
+          {
+            id: '3-4- ',
+            index: 3,
+            text: ' ',
+            normalizedSurface: ' ',
+            dictionaryForm: ' ',
+            pos: 'Space',
+            posCategory: 'excluded',
+            isMarkable: false,
+            isWordLike: false,
+            offset: 4,
+            length: 1,
+          },
+          {
+            id: '4-5-문장',
+            index: 4,
+            text: '문장',
+            normalizedSurface: '문장',
+            dictionaryForm: '문장',
+            pos: 'Noun',
+            posCategory: 'content',
+            isMarkable: true,
+            isWordLike: true,
+            offset: 5,
+            length: 2,
+          },
+        ],
+        markedTokenIds: [],
+        slashAnchorTokenIds: [],
+        timerState: {
+          baseElapsedMs: 0,
+          elapsedMs: 0,
+          isRunning: false,
+          lastStartedAt: null,
+        },
+      }),
+    );
+
+    render(<App />);
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: '읽' }));
+
+    const nextWord = screen.getByRole('button', { name: '다음' });
+    const slash = screen.getByLabelText('Slash break');
+    const followingWord = screen.getByRole('button', { name: '문장' });
+
+    expect(nextWord.compareDocumentPosition(slash) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(slash.compareDocumentPosition(followingWord) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('does not add a slash when no later space or sentence-final punctuation exists', async () => {
     render(<App />);
 
     fireEvent.change(screen.getByLabelText('Korean text'), {
