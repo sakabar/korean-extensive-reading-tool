@@ -88,7 +88,6 @@ describe('App', () => {
           },
         ],
         markedTokenIds: ['0-0-한국어'],
-        lastClickedTokenId: '0-0-한국어',
         timerState: {
           baseElapsedMs: 65000,
           elapsedMs: 65000,
@@ -113,7 +112,6 @@ describe('App', () => {
         rawText: '저는 한국어를 공부합니다.',
         tokens: [],
         markedTokenIds: [],
-        lastClickedTokenId: null,
         timerState: {
           baseElapsedMs: 0,
           elapsedMs: 0,

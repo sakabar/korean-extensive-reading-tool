@@ -135,7 +135,7 @@ describe('formatDuration', () => {
 });
 
 describe('loadPersistedState', () => {
-  it('restores a running timer by adding elapsed time since reload', () => {
+  it('restores a running timer and ignores legacy click-position state', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-04-25T12:00:00+09:00'));
     window.localStorage.setItem(
@@ -169,7 +169,6 @@ describe('loadPersistedState', () => {
         rawText: '한국어',
         tokens: [],
         markedTokenIds: ['1'],
-        lastClickedTokenId: '1',
         timerState: {
           baseElapsedMs: 0,
           elapsedMs: 0,
@@ -184,7 +183,6 @@ describe('loadPersistedState', () => {
     expect(restored.state.rawText).toBe('한국어');
     expect(restored.state.tokens).toEqual([]);
     expect(restored.state.markedTokenIds).toEqual([]);
-    expect(restored.state.lastClickedTokenId).toBeNull();
     expect(restored.needsTokenRefresh).toBe(true);
     vi.useRealTimers();
   });

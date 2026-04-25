@@ -248,7 +248,6 @@ export default function App() {
       rawText: nextText,
       tokens: buildEmptyAnalysis().tokens,
       markedTokenIds: [],
-      lastClickedTokenId: null,
       timerState: createResetTimerState(),
     }));
     queueTextAnalysis(nextText);
@@ -260,7 +259,6 @@ export default function App() {
       return {
         ...current,
         markedTokenIds: toggled,
-        lastClickedTokenId: tokenId,
       };
     });
   };
@@ -346,7 +344,6 @@ export default function App() {
     setState((current) => ({
       ...current,
       markedTokenIds: [],
-      lastClickedTokenId: null,
     }));
   };
 
