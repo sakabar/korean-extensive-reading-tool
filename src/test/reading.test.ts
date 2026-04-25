@@ -34,8 +34,8 @@ function token(
 }
 
 describe('analyzeText', () => {
-  it('classifies josa as excluded and nouns as markable', () => {
-    const result = analyzeText('저는 한국어를 공부합니다.');
+  it('classifies josa as excluded and nouns as markable', async () => {
+    const result = await analyzeText('저는 한국어를 공부합니다.');
     const josa = result.tokens.find((item) => item.text === '는');
     const noun = result.tokens.find((item) => item.text === '한국어');
 
@@ -156,8 +156,36 @@ describe('loadPersistedState', () => {
 
     const restored = loadPersistedState();
 
-    expect(restored.timerState.isRunning).toBe(true);
-    expect(restored.timerState.elapsedMs).toBe(8000);
+    expect(restored.state.timerState.isRunning).toBe(true);
+    expect(restored.state.timerState.elapsedMs).toBe(8000);
+    expect(restored.needsTokenRefresh).toBe(false);
+    vi.useRealTimers();
+  });
+
+  it('marks persisted raw text without tokens for background reanalysis', () => {
+    window.localStorage.setItem(
+      'korean-extensive-reading-tool:v1',
+      JSON.stringify({
+        rawText: '한국어',
+        tokens: [],
+        markedTokenIds: ['1'],
+        lastClickedTokenId: '1',
+        timerState: {
+          baseElapsedMs: 0,
+          elapsedMs: 0,
+          isRunning: false,
+          lastStartedAt: null,
+        },
+      }),
+    );
+
+    const restored = loadPersistedState();
+
+    expect(restored.state.rawText).toBe('한국어');
+    expect(restored.state.tokens).toEqual([]);
+    expect(restored.state.markedTokenIds).toEqual([]);
+    expect(restored.state.lastClickedTokenId).toBeNull();
+    expect(restored.needsTokenRefresh).toBe(true);
     vi.useRealTimers();
   });
 });
