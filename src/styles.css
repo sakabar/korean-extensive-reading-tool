@@ -121,10 +121,16 @@ button {
 
 .panel-actions,
 .timer-actions,
-.legend {
+.legend,
+.reader-heading-actions {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+.reader-heading-actions {
+  justify-content: flex-end;
+  align-items: center;
 }
 
 .primary-button,
@@ -399,6 +405,10 @@ button {
 
   .panel-heading {
     flex-direction: column;
+  }
+
+  .reader-heading-actions {
+    justify-content: flex-start;
   }
 
   .stats-grid {
