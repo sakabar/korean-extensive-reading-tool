@@ -24,7 +24,9 @@ npm run build
 
 ## Continuous Integration
 - `CI` runs `npm test` and `npm run build` on every `push` and `pull_request`.
-- `Versioning` supports manual semantic version bumps on `develop`, then creates the tag and GitHub Release after the version reaches `main`.
+- `Versioning` must be run manually on `develop` with `patch`, `minor`, or `major` selected in `release_type`.
+- `Versioning` logs the selected branch, raw workflow inputs, the normalized release type, and the before/after version values so the applied increment is visible in the run output.
+- `Versioning` creates the tag and GitHub Release after the bumped version reaches `main`.
 - `Deploy Pages` publishes the built `dist/` output to GitHub Pages on every `main` push by using the official Pages deployment actions.
 
 ## Deployment Note

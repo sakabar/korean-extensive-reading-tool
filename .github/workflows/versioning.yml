@@ -52,8 +52,44 @@ jobs:
       - name: Run production build
         run: npm run build
 
+      - name: Normalize release type
+        id: release_type
+        env:
+          RAW_RELEASE_TYPE_EVENT: ${{ github.event.inputs.release_type }}
+          RAW_RELEASE_TYPE_INPUTS: ${{ inputs.release_type }}
+        run: |
+          release_type="${RAW_RELEASE_TYPE_EVENT:-${RAW_RELEASE_TYPE_INPUTS:-patch}}"
+
+          case "$release_type" in
+            patch|minor|major)
+              ;;
+            *)
+              echo "Unsupported release_type: $release_type"
+              exit 1
+              ;;
+          esac
+
+          echo "value=$release_type" >> "$GITHUB_OUTPUT"
+
+      - name: Log versioning inputs
+        env:
+          RAW_RELEASE_TYPE_EVENT: ${{ github.event.inputs.release_type }}
+          RAW_RELEASE_TYPE_INPUTS: ${{ inputs.release_type }}
+          NORMALIZED_RELEASE_TYPE: ${{ steps.release_type.outputs.value }}
+        run: |
+          echo "branch=${GITHUB_REF_NAME}"
+          echo "raw_release_type_event=${RAW_RELEASE_TYPE_EVENT:-<empty>}"
+          echo "raw_release_type_inputs=${RAW_RELEASE_TYPE_INPUTS:-<empty>}"
+          echo "normalized_release_type=${NORMALIZED_RELEASE_TYPE}"
+          echo "version_before=$(node -p "require('./package.json').version")"
+
       - name: Bump application version
-        run: npm version "${{ inputs.release_type }}" --no-git-tag-version
+        env:
+          RELEASE_TYPE: ${{ steps.release_type.outputs.value }}
+        run: npm version "$RELEASE_TYPE" --no-git-tag-version
+
+      - name: Log bumped version
+        run: echo "version_after=$(node -p "require('./package.json').version")"
 
       - name: Commit and push version bump
         run: |

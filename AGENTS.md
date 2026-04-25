@@ -99,6 +99,8 @@
 - `package.json` の `engines.node` と GitHub Actions の実行 Node は 24 系に統一する。
 - `CI` は `push` / `pull_request` 時に `npm test` と `npm run build` を自動実行する。
 - `Versioning` は `develop` ブランチで `workflow_dispatch` から `major` / `minor` / `patch` を選んで版数更新し、`main` に入った版数をもとに tag と GitHub Release を確定する。
+- `Versioning` の版数更新入力は workflow 内で正規化してから `npm version` に渡し、`github.event.inputs` と `inputs` の差異で意図しない bump 種別にならないようにする。
+- `Versioning` 実行ログには対象 branch、受け取った raw input、正規化後の bump 種別、更新前後 version を出力し、`major` / `minor` / `patch` の適用内容を追跡できるようにする。
 - `Deploy Pages` は `main` への push ごとに GitHub Actions 公式の Pages deploy を使って `dist/` を公開する。
 - `Deploy Pages` の初回実行前に、GitHub の `Settings > Pages` で `Build and deployment > Source` を `GitHub Actions` に設定して Pages site を有効化しておくこと。
 - favicon は `bunbougu_marker.png` を元画像として `public/favicon.ico` と `public/favicon-32x32.png` を配置し、`index.html` から相対参照で読み込む。
@@ -139,6 +141,8 @@
 - GitHub Actions の 3 workflow 構成追加後に、ローカルでも `npm test` と `npm run build` が継続して通ることを確認する。
 - Node 24 への統一後に、`package.json` の `engines.node` と 3 workflow の `node-version` がすべて 24 系で一致していることを確認する。
 - `Versioning` は `develop` で manual dispatch し、`main` 反映後に同一 version の tag / Release が二重作成されないことを確認対象とする。
+- `Versioning` は `patch` / `minor` / `major` の各入力でそれぞれ semver どおりに版数が上がることを確認対象とする。
+- `Versioning` は input が空または不正値なら version bump 前に失敗し、run log に raw input と正規化結果が出ることを確認対象とする。
 - `Deploy Pages` は GitHub Pages の公開元を GitHub Actions に設定した上で、`main` push で `dist/` が公開されることを確認対象とする。
 - `Deploy Pages` 実行時に `actions/configure-pages` が `Get Pages site failed` または `Not Found` で失敗した場合は、repository の Pages が未有効化か `Source` 未設定を疑うことを確認メモとして残す。
 - favicon の生成後に `npm run build` を通し、`dist/` に `favicon.ico` と PNG が出力され、`dist/index.html` から相対参照で解決されることを確認した。
