@@ -395,9 +395,8 @@ export default function App() {
           <p className="eyebrow">Korean Extensive Reading Tool</p>
           <h1>Track unknown words while you read</h1>
           <p className="hero-copy">
-            Paste one Korean passage, start the timer, and mark only the words you
-            do not know. Function words stay outside the denominator so the ratio
-            stays useful for extensive reading.
+            Paste one Korean passage, start the timer, and mark only the words you do not know.<br/>
+            Function words stay outside the denominator so the ratio stays useful for extensive reading.
           </p>
         </div>
       </section>
