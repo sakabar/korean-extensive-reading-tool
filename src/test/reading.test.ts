@@ -198,7 +198,44 @@ describe('findSlashInsertionPoint', () => {
     });
   });
 
-  it('returns null when the next content word arrives before a break', () => {
+  it('keeps scanning across consecutive content words until the next space', () => {
+    const tokens = [
+      token('1', '읽', 'Verb'),
+      token('2', '고', 'Eomi', { isMarkable: false, posCategory: 'excluded' }),
+      token('3', '다음', 'Noun'),
+      token('4', ' ', 'Space', {
+        isMarkable: false,
+        posCategory: 'excluded',
+        isWordLike: false,
+      }),
+      token('5', '문장', 'Noun'),
+    ];
+
+    expect(findSlashInsertionPoint(tokens, '1')).toEqual({
+      type: 'space',
+      tokenId: '4',
+    });
+  });
+
+  it('falls back to sentence-final punctuation when no later space exists', () => {
+    const tokens = [
+      token('1', '읽', 'Verb'),
+      token('2', '고', 'Eomi', { isMarkable: false, posCategory: 'excluded' }),
+      token('3', '다음', 'Noun'),
+      token('4', '.', 'Punctuation', {
+        isMarkable: false,
+        posCategory: 'excluded',
+        isWordLike: false,
+      }),
+    ];
+
+    expect(findSlashInsertionPoint(tokens, '1')).toEqual({
+      type: 'punctuation',
+      tokenId: '4',
+    });
+  });
+
+  it('returns null when there is no later break at all', () => {
     const tokens = [
       token('1', '읽', 'Verb'),
       token('2', '고', 'Eomi', { isMarkable: false, posCategory: 'excluded' }),

@@ -230,10 +230,6 @@ export function findSlashInsertionPoint(
       };
     }
 
-    if (token.isMarkable) {
-      return null;
-    }
-
     if (token.pos === 'Punctuation') {
       pendingPunctuationTokenId = token.id;
       continue;
