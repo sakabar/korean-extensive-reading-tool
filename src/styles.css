@@ -169,12 +169,6 @@ button {
   border: 1px solid var(--line);
 }
 
-.ghost-button--active {
-  background: rgba(44, 122, 123, 0.1);
-  color: var(--cool);
-  border-color: rgba(44, 122, 123, 0.28);
-}
-
 .primary-button:hover,
 .secondary-button:hover,
 .ghost-button:hover,
@@ -283,6 +277,14 @@ button {
   white-space: pre-wrap;
 }
 
+.reader-slash {
+  display: inline-block;
+  margin: 0 0.04em;
+  color: #c03123;
+  font-weight: 700;
+  line-height: 1;
+}
+
 .reader-token {
   display: inline;
   margin: 0;
@@ -320,12 +322,6 @@ button {
   text-decoration-color: rgba(200, 76, 30, 0.9);
   font-weight: 700;
   box-shadow: inset 0 -0.42em 0 rgba(255, 192, 133, 0.4);
-}
-
-.reader-slash {
-  color: rgba(44, 122, 123, 0.72);
-  font-weight: 700;
-  letter-spacing: 0.04em;
 }
 
 .timer-panel {

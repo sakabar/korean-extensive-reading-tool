@@ -2,12 +2,14 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   analyzeText,
   buildClipboardText,
-  buildReadingChunkBreaks,
+  buildSlashInsertionLookup,
   computeReadingStats,
+  findSlashInsertionPoint,
   formatDuration,
   groupMarkedTokens,
   loadPersistedState,
   toggleMarkedToken,
+  toggleSlashAnchorToken,
   type ReadingToken,
   type PosCategory,
   type KoreanPos,
@@ -45,26 +47,6 @@ describe('analyzeText', () => {
     expect(noun?.isMarkable).toBe(true);
     expect(noun?.posCategory).toBe('content');
     expect(result.tokens.find((item) => item.text === '합니다')?.dictionaryForm).toBe('하다');
-    expect(result.phraseSpans).toEqual(expect.any(Array));
-  });
-});
-
-describe('buildReadingChunkBreaks', () => {
-  it('adds chunk breaks after heuristic phrase boundaries', async () => {
-    const result = await analyzeText('저는 오늘 도서관에 가서 한국어 책을 읽었습니다.');
-    const breakIds = buildReadingChunkBreaks(result.tokens, result.phraseSpans);
-
-    expect(breakIds.has(result.tokens.find((item) => item.text === '가서')?.id ?? '')).toBe(true);
-    expect(breakIds.has(result.tokens.find((item) => item.text === '오늘')?.id ?? '')).toBe(false);
-    expect(breakIds.has(result.tokens.find((item) => item.text === '책')?.id ?? '')).toBe(false);
-  });
-
-  it('keeps auxiliary predicate chains together', async () => {
-    const result = await analyzeText('비가 오면 집에서 책을 읽고 싶어요.');
-    const breakIds = buildReadingChunkBreaks(result.tokens, result.phraseSpans);
-
-    expect(breakIds.has(result.tokens.find((item) => item.text === '오면')?.id ?? '')).toBe(true);
-    expect(breakIds.has(result.tokens.find((item) => item.text === '읽고')?.id ?? '')).toBe(false);
   });
 });
 
@@ -149,6 +131,100 @@ describe('toggleMarkedToken', () => {
   });
 });
 
+describe('toggleSlashAnchorToken', () => {
+  it('adds and removes slash anchor ids', () => {
+    expect(toggleSlashAnchorToken([], 'a')).toEqual(['a']);
+    expect(toggleSlashAnchorToken(['a'], 'a')).toEqual([]);
+  });
+});
+
+describe('findSlashInsertionPoint', () => {
+  it('places a slash at the next space after functional tokens', () => {
+    const tokens = [
+      token('1', '한국어', 'Noun'),
+      token('2', '를', 'Josa', { isMarkable: false, posCategory: 'excluded' }),
+      token('3', '읽고', 'Verb', { isMarkable: false, posCategory: 'excluded' }),
+      token('4', ' ', 'Space', {
+        isMarkable: false,
+        posCategory: 'excluded',
+        isWordLike: false,
+      }),
+      token('5', '공부', 'Noun'),
+    ];
+
+    expect(findSlashInsertionPoint(tokens, '1')).toEqual({
+      type: 'space',
+      tokenId: '4',
+    });
+  });
+
+  it('places a slash after sentence-final punctuation when no space follows', () => {
+    const tokens = [
+      token('1', '많', 'Adjective'),
+      token('2', '다', 'Eomi', { isMarkable: false, posCategory: 'excluded' }),
+      token('3', '.', 'Punctuation', {
+        isMarkable: false,
+        posCategory: 'excluded',
+        isWordLike: false,
+      }),
+    ];
+
+    expect(findSlashInsertionPoint(tokens, '1')).toEqual({
+      type: 'punctuation',
+      tokenId: '3',
+    });
+  });
+
+  it('prefers the following space over punctuation when both exist', () => {
+    const tokens = [
+      token('1', '많', 'Adjective'),
+      token('2', '다', 'Eomi', { isMarkable: false, posCategory: 'excluded' }),
+      token('3', '.', 'Punctuation', {
+        isMarkable: false,
+        posCategory: 'excluded',
+        isWordLike: false,
+      }),
+      token('4', ' ', 'Space', {
+        isMarkable: false,
+        posCategory: 'excluded',
+        isWordLike: false,
+      }),
+      token('5', '다음', 'Noun'),
+    ];
+
+    expect(findSlashInsertionPoint(tokens, '1')).toEqual({
+      type: 'space',
+      tokenId: '4',
+    });
+  });
+
+  it('returns null when the next content word arrives before a break', () => {
+    const tokens = [
+      token('1', '읽', 'Verb'),
+      token('2', '고', 'Eomi', { isMarkable: false, posCategory: 'excluded' }),
+      token('3', '다음', 'Noun'),
+    ];
+
+    expect(findSlashInsertionPoint(tokens, '1')).toBeNull();
+  });
+});
+
+describe('buildSlashInsertionLookup', () => {
+  it('maps anchor tokens to their rendered slash position', () => {
+    const tokens = [
+      token('1', '한국어', 'Noun'),
+      token('2', '를', 'Josa', { isMarkable: false, posCategory: 'excluded' }),
+      token('3', ' ', 'Space', {
+        isMarkable: false,
+        posCategory: 'excluded',
+        isWordLike: false,
+      }),
+    ];
+
+    expect(buildSlashInsertionLookup(tokens, ['1'])).toEqual(new Map([['3', 'space']]));
+  });
+});
+
 describe('formatDuration', () => {
   it('formats elapsed time as hh:mm:ss', () => {
     expect(formatDuration(3723000)).toBe('01:02:03');
@@ -165,7 +241,7 @@ describe('loadPersistedState', () => {
         rawText: '한국어',
         tokens: [token('1', '한국어', 'Noun')],
         markedTokenIds: ['1'],
-        showReadingChunks: true,
+        slashAnchorTokenIds: ['1'],
         lastClickedTokenId: '1',
         timerState: {
           baseElapsedMs: 5000,
@@ -180,6 +256,7 @@ describe('loadPersistedState', () => {
 
     expect(restored.state.timerState.isRunning).toBe(true);
     expect(restored.state.timerState.elapsedMs).toBe(8000);
+    expect(restored.state.slashAnchorTokenIds).toEqual(['1']);
     expect(restored.needsTokenRefresh).toBe(false);
     vi.useRealTimers();
   });
@@ -191,7 +268,7 @@ describe('loadPersistedState', () => {
         rawText: '한국어',
         tokens: [],
         markedTokenIds: ['1'],
-        showReadingChunks: false,
+        slashAnchorTokenIds: ['1'],
         timerState: {
           baseElapsedMs: 0,
           elapsedMs: 0,
@@ -206,7 +283,7 @@ describe('loadPersistedState', () => {
     expect(restored.state.rawText).toBe('한국어');
     expect(restored.state.tokens).toEqual([]);
     expect(restored.state.markedTokenIds).toEqual([]);
-    expect(restored.state.showReadingChunks).toBe(false);
+    expect(restored.state.slashAnchorTokenIds).toEqual([]);
     expect(restored.needsTokenRefresh).toBe(true);
     vi.useRealTimers();
   });
