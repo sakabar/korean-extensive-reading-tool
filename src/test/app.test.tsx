@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import packageJson from '../../package.json';
 import App from '../App';
 
 describe('App', () => {
@@ -27,6 +28,12 @@ describe('App', () => {
     fireEvent.click(token);
 
     expect(screen.getByText('Results appear after you stop the timer.')).toBeInTheDocument();
+  });
+
+  it('shows the current app version from package.json', () => {
+    render(<App />);
+
+    expect(screen.getByText(`Version ${packageJson.version}`)).toBeInTheDocument();
   });
 
   it('shows timer before reader and stop action directly after reader', () => {
