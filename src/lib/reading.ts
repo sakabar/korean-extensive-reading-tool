@@ -28,7 +28,6 @@ export type PersistedReadingState = {
   rawText: string;
   tokens: ReadingToken[];
   markedTokenIds: string[];
-  lastClickedTokenId: string | null;
   timerState: TimerState;
 };
 
@@ -100,7 +99,6 @@ export function createEmptyPersistedState(): PersistedReadingState {
     rawText: '',
     tokens: [],
     markedTokenIds: [],
-    lastClickedTokenId: null,
     timerState: createResetTimerState(),
   };
 }
@@ -223,8 +221,6 @@ export function loadPersistedState(): LoadedPersistedState {
     const markedTokenIds = Array.isArray(parsed.markedTokenIds)
       ? parsed.markedTokenIds.filter((value): value is string => typeof value === 'string')
       : [];
-    const lastClickedTokenId =
-      typeof parsed.lastClickedTokenId === 'string' ? parsed.lastClickedTokenId : null;
     const timerState = restoreTimerState(parsed.timerState);
     const needsTokenRefresh = Boolean(rawText && !persistedTokens.length);
 
@@ -234,10 +230,6 @@ export function loadPersistedState(): LoadedPersistedState {
         rawText,
         tokens: persistedTokens,
         markedTokenIds: markedTokenIds.filter((id) => persistedTokens.some((token) => token.id === id)),
-        lastClickedTokenId:
-          lastClickedTokenId && persistedTokens.some((token) => token.id === lastClickedTokenId)
-            ? lastClickedTokenId
-            : null,
         timerState,
       },
       needsTokenRefresh,

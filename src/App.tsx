@@ -248,7 +248,6 @@ export default function App() {
       rawText: nextText,
       tokens: buildEmptyAnalysis().tokens,
       markedTokenIds: [],
-      lastClickedTokenId: null,
       timerState: createResetTimerState(),
     }));
     queueTextAnalysis(nextText);
@@ -260,7 +259,6 @@ export default function App() {
       return {
         ...current,
         markedTokenIds: toggled,
-        lastClickedTokenId: tokenId,
       };
     });
   };
@@ -330,6 +328,25 @@ export default function App() {
     await navigator.clipboard.writeText(buildClipboardText(groupedWords));
   };
 
+  const handleClearSelections = () => {
+    if (!state.markedTokenIds.length) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      'Clear all marked unknown words? This cannot be undone.',
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setState((current) => ({
+      ...current,
+      markedTokenIds: [],
+    }));
+  };
+
   return (
     <main className="app-shell">
       <section className="hero">
@@ -391,9 +408,17 @@ export default function App() {
                 <p className="eyebrow">Reader</p>
                 <h2>Click unknown words</h2>
               </div>
-              <div className="legend">
+              <div className="reader-heading-actions">
                 <span className="legend-chip legend-chip--markable">Clickable</span>
                 <span className="legend-chip legend-chip--marked">Marked</span>
+                <button
+                  type="button"
+                  className="ghost-button"
+                  onClick={handleClearSelections}
+                  disabled={!state.markedTokenIds.length}
+                >
+                  Clear Selections
+                </button>
               </div>
             </div>
             <p className="reader-help">

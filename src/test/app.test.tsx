@@ -6,6 +6,7 @@ describe('App', () => {
   beforeEach(() => {
     window.localStorage.clear();
     vi.useRealTimers();
+    vi.restoreAllMocks();
     Object.assign(navigator, {
       clipboard: {
         writeText: vi.fn(),
@@ -87,7 +88,6 @@ describe('App', () => {
           },
         ],
         markedTokenIds: ['0-0-한국어'],
-        lastClickedTokenId: '0-0-한국어',
         timerState: {
           baseElapsedMs: 65000,
           elapsedMs: 65000,
@@ -112,7 +112,6 @@ describe('App', () => {
         rawText: '저는 한국어를 공부합니다.',
         tokens: [],
         markedTokenIds: [],
-        lastClickedTokenId: null,
         timerState: {
           baseElapsedMs: 0,
           elapsedMs: 0,
@@ -182,6 +181,58 @@ describe('App', () => {
   it('disables copy button when unknown list is empty', () => {
     render(<App />);
 
+    expect(screen.getByRole('button', { name: 'Copy to Clipboard' })).toBeDisabled();
+  });
+
+  it('disables clear selections when no unknown words are marked', () => {
+    render(<App />);
+
+    expect(screen.getByRole('button', { name: 'Clear Selections' })).toBeDisabled();
+  });
+
+  it('keeps marked words when clear selections is canceled', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText('Korean text'), {
+      target: { value: '저는 한국어를 공부합니다.' },
+    });
+    fireEvent.click(await screen.findByRole('button', { name: '한국어' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Clear Selections' }));
+
+    expect(confirmSpy).toHaveBeenCalledWith(
+      'Clear all marked unknown words? This cannot be undone.',
+    );
+    expect(screen.getByRole('button', { name: '한국어' })).toHaveClass('reader-token--marked');
+    expect(screen.getByRole('button', { name: 'Clear Selections' })).toBeEnabled();
+  });
+
+  it('clears marked words after confirmation without resetting the timer', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText('Korean text'), {
+      target: { value: '저는 한국어를 공부합니다.' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Start' }));
+    fireEvent.click(await screen.findByRole('button', { name: '한국어' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Clear Selections' }));
+
+    expect(confirmSpy).toHaveBeenCalledWith(
+      'Clear all marked unknown words? This cannot be undone.',
+    );
+    expect(screen.queryByRole('button', { name: 'Start' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Stop' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '한국어' })).not.toHaveClass('reader-token--marked');
+    expect(screen.getByRole('button', { name: 'Clear Selections' })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Stop After Reading' }));
+
+    expect(screen.getByText('No unknown words yet.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Copy to Clipboard' })).toBeDisabled();
   });
 });
