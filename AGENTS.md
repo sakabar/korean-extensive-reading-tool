@@ -105,6 +105,8 @@
 - `Versioning` の版数更新入力は workflow 内で正規化してから `npm version` に渡し、`github.event.inputs` と `inputs` の差異で意図しない bump 種別にならないようにする。
 - `Versioning` の `release_type` は `select-bump` を初期値とし、そのまま実行された場合は `npm version` の前に明示的に失敗させる。
 - `Versioning` 実行ログには対象 branch、受け取った raw input、正規化後の bump 種別、更新前後 version を出力し、`major` / `minor` / `patch` の適用内容を追跡できるようにする。
+- `Versioning` は version bump を `develop` に push した直後、`package.json` の更新後 version を使って `develop -> main` の Pull Request を自動作成する。
+- `develop -> main` の Pull Request が既に開いている場合、`Versioning` は新規 PR を増やさず既存 PR のタイトルと本文を最新 version に更新する。
 - `Deploy Pages` は `main` への push ごとに GitHub Actions 公式の Pages deploy を使って `dist/` を公開する。
 - `Deploy Pages` の初回実行前に、GitHub の `Settings > Pages` で `Build and deployment > Source` を `GitHub Actions` に設定して Pages site を有効化しておくこと。
 - favicon は `bunbougu_marker.png` を元画像として `public/favicon.ico` と `public/favicon-32x32.png` を配置し、`index.html` から相対参照で読み込む。
@@ -148,6 +150,7 @@
 - `Versioning` は `develop` で manual dispatch し、`main` 反映後に同一 version の tag / Release が二重作成されないことを確認対象とする。
 - `Versioning` は `patch` / `minor` / `major` の各入力でそれぞれ semver どおりに版数が上がることを確認対象とする。
 - `Versioning` は `select-bump`・空・不正値の入力なら version bump 前に失敗し、run log に raw input と正規化結果が出ることを確認対象とする。
+- `Versioning` は更新後 version を title にした `develop -> main` PR を自動作成し、既存 PR がある場合は重複作成せずタイトル更新だけを行うことを確認対象とする。
 - `Deploy Pages` は GitHub Pages の公開元を GitHub Actions に設定した上で、`main` push で `dist/` が公開されることを確認対象とする。
 - `Deploy Pages` 実行時に `actions/configure-pages` が `Get Pages site failed` または `Not Found` で失敗した場合は、repository の Pages が未有効化か `Source` 未設定を疑うことを確認メモとして残す。
 - favicon の生成後に `npm run build` を通し、`dist/` に `favicon.ico` と PNG が出力され、`dist/index.html` から相対参照で解決されることを確認した。
