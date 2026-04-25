@@ -194,6 +194,8 @@ describe('App', () => {
   it('disables clear selections when no unknown words are marked', () => {
     render(<App />);
 
+    expect(screen.queryByText('Clickable')).not.toBeInTheDocument();
+    expect(screen.queryByText('Marked')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Clear Selections' })).toBeDisabled();
   });
 
