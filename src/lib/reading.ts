@@ -28,6 +28,7 @@ export type PersistedReadingState = {
   rawText: string;
   tokens: ReadingToken[];
   markedTokenIds: string[];
+  slashAnchorTokenIds: string[];
   timerState: TimerState;
 };
 
@@ -55,6 +56,10 @@ export type MarkedWordGroup = {
   count: number;
   posLabel: string;
 };
+
+export type SlashInsertionPoint =
+  | { type: 'space'; tokenId: string }
+  | { type: 'punctuation'; tokenId: string };
 
 const STORAGE_KEY = 'korean-extensive-reading-tool:v1';
 
@@ -99,6 +104,7 @@ export function createEmptyPersistedState(): PersistedReadingState {
     rawText: '',
     tokens: [],
     markedTokenIds: [],
+    slashAnchorTokenIds: [],
     timerState: createResetTimerState(),
   };
 }
@@ -196,6 +202,73 @@ export function toggleMarkedToken(markedTokenIds: string[], tokenId: string): st
     : [...markedTokenIds, tokenId];
 }
 
+export function toggleSlashAnchorToken(slashAnchorTokenIds: string[], tokenId: string): string[] {
+  return slashAnchorTokenIds.includes(tokenId)
+    ? slashAnchorTokenIds.filter((id) => id !== tokenId)
+    : [...slashAnchorTokenIds, tokenId];
+}
+
+export function findSlashInsertionPoint(
+  tokens: ReadingToken[],
+  anchorTokenId: string,
+): SlashInsertionPoint | null {
+  const anchorIndex = tokens.findIndex((token) => token.id === anchorTokenId);
+
+  if (anchorIndex === -1 || !tokens[anchorIndex].isMarkable) {
+    return null;
+  }
+
+  let pendingPunctuationTokenId: string | null = null;
+
+  for (let index = anchorIndex + 1; index < tokens.length; index += 1) {
+    const token = tokens[index];
+
+    if (token.pos === 'Space') {
+      return {
+        type: 'space',
+        tokenId: token.id,
+      };
+    }
+
+    if (token.isMarkable) {
+      return null;
+    }
+
+    if (token.pos === 'Punctuation') {
+      pendingPunctuationTokenId = token.id;
+      continue;
+    }
+
+    pendingPunctuationTokenId = null;
+  }
+
+  return pendingPunctuationTokenId
+    ? {
+        type: 'punctuation',
+        tokenId: pendingPunctuationTokenId,
+      }
+    : null;
+}
+
+export function buildSlashInsertionLookup(
+  tokens: ReadingToken[],
+  slashAnchorTokenIds: string[],
+): Map<string, SlashInsertionPoint['type']> {
+  const lookup = new Map<string, SlashInsertionPoint['type']>();
+
+  for (const anchorTokenId of slashAnchorTokenIds) {
+    const insertionPoint = findSlashInsertionPoint(tokens, anchorTokenId);
+
+    if (!insertionPoint) {
+      continue;
+    }
+
+    lookup.set(insertionPoint.tokenId, insertionPoint.type);
+  }
+
+  return lookup;
+}
+
 export function loadPersistedState(): LoadedPersistedState {
   const empty = {
     state: createEmptyPersistedState(),
@@ -221,6 +294,9 @@ export function loadPersistedState(): LoadedPersistedState {
     const markedTokenIds = Array.isArray(parsed.markedTokenIds)
       ? parsed.markedTokenIds.filter((value): value is string => typeof value === 'string')
       : [];
+    const slashAnchorTokenIds = Array.isArray(parsed.slashAnchorTokenIds)
+      ? parsed.slashAnchorTokenIds.filter((value): value is string => typeof value === 'string')
+      : [];
     const timerState = restoreTimerState(parsed.timerState);
     const needsTokenRefresh = Boolean(rawText && !persistedTokens.length);
 
@@ -230,6 +306,9 @@ export function loadPersistedState(): LoadedPersistedState {
         rawText,
         tokens: persistedTokens,
         markedTokenIds: markedTokenIds.filter((id) => persistedTokens.some((token) => token.id === id)),
+        slashAnchorTokenIds: slashAnchorTokenIds.filter((id) =>
+          persistedTokens.some((token) => token.id === id),
+        ),
         timerState,
       },
       needsTokenRefresh,

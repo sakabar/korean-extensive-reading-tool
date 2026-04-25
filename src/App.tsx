@@ -1,16 +1,27 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent,
+  type PointerEvent,
+  type TouchEvent,
+} from 'react';
 import packageJson from '../package.json';
 import {
   analyzeText,
   buildEmptyAnalysis,
   buildClipboardText,
+  buildSlashInsertionLookup,
   computeReadingStats,
   createResetTimerState,
+  findSlashInsertionPoint,
   formatDuration,
   groupMarkedTokens,
   loadPersistedState,
   resetReadingState,
   toggleMarkedToken,
+  toggleSlashAnchorToken,
   type LoadedPersistedState,
   type PersistedReadingState,
   type TimerState,
@@ -18,6 +29,7 @@ import {
 
 const SAMPLE_TEXT = `저는 매일 아침에 한국어 기사를 읽습니다.
 어려운 단어가 나오면 클릭하면서 끝까지 읽어 봅니다.`;
+const LONG_PRESS_MS = 450;
 
 function StatsCard({
   label,
@@ -82,18 +94,50 @@ function TimerPanel({
 function TokenButton({
   token,
   isMarked,
+  slashPlacement,
+  canToggleSlash,
   onClick,
+  onToggleSlash,
+  onPointerStart,
+  onPointerEnd,
+  onTouchStart,
+  onTouchEnd,
 }: {
   token: PersistedReadingState['tokens'][number];
   isMarked: boolean;
+  slashPlacement?: 'space' | 'punctuation';
+  canToggleSlash: boolean;
   onClick: () => void;
+  onToggleSlash: (event: MouseEvent<HTMLButtonElement>) => void;
+  onPointerStart: (event: PointerEvent<HTMLButtonElement>) => void;
+  onPointerEnd: () => void;
+  onTouchStart: (event: TouchEvent<HTMLButtonElement>) => void;
+  onTouchEnd: () => void;
 }) {
   if (token.pos === 'Space') {
-    return <span className="token-space">{token.text}</span>;
+    return (
+      <>
+        {slashPlacement === 'space' ? (
+          <span className="reader-slash" aria-label="Slash break">
+            /
+          </span>
+        ) : null}
+        <span className="token-space">{token.text}</span>
+      </>
+    );
   }
 
   if (token.pos === 'Punctuation') {
-    return <span className="token-punctuation">{token.text}</span>;
+    return (
+      <>
+        <span className="token-punctuation">{token.text}</span>
+        {slashPlacement === 'punctuation' ? (
+          <span className="reader-slash" aria-label="Slash break">
+            /
+          </span>
+        ) : null}
+      </>
+    );
   }
 
   if (!token.isWordLike) {
@@ -109,6 +153,14 @@ function TokenButton({
       type="button"
       className={`reader-token reader-token--interactive ${isMarked ? 'reader-token--marked' : ''}`}
       onClick={onClick}
+      onContextMenu={onToggleSlash}
+      onPointerDown={canToggleSlash ? onPointerStart : undefined}
+      onPointerUp={canToggleSlash ? onPointerEnd : undefined}
+      onPointerCancel={canToggleSlash ? onPointerEnd : undefined}
+      onPointerLeave={canToggleSlash ? onPointerEnd : undefined}
+      onTouchStart={canToggleSlash ? onTouchStart : undefined}
+      onTouchEnd={canToggleSlash ? onTouchEnd : undefined}
+      onTouchCancel={canToggleSlash ? onTouchEnd : undefined}
     >
       {token.text}
     </button>
@@ -128,6 +180,9 @@ export default function App() {
   const [isAnalyzing, setIsAnalyzing] = useState(initialLoad.current.needsTokenRefresh);
   const [now, setNow] = useState(Date.now());
   const analysisRequestIdRef = useRef(0);
+  const longPressTimerRef = useRef<number | null>(null);
+  const longPressTokenIdRef = useRef<string | null>(null);
+  const suppressNextClickTokenIdRef = useRef<string | null>(null);
 
   const queueTextAnalysis = (nextText: string) => {
     const requestId = analysisRequestIdRef.current + 1;
@@ -175,6 +230,12 @@ export default function App() {
     return () => window.clearInterval(interval);
   }, []);
 
+  useEffect(() => () => {
+    if (longPressTimerRef.current !== null) {
+      window.clearTimeout(longPressTimerRef.current);
+    }
+  }, []);
+
   useEffect(() => {
     if (!initialLoad.current.needsTokenRefresh || !initialLoad.current.state.rawText.trim()) {
       return;
@@ -216,6 +277,19 @@ export default function App() {
     () => groupMarkedTokens(state.tokens, new Set(state.markedTokenIds)),
     [state.tokens, state.markedTokenIds],
   );
+  const slashLookup = useMemo(
+    () => buildSlashInsertionLookup(state.tokens, state.slashAnchorTokenIds),
+    [state.slashAnchorTokenIds, state.tokens],
+  );
+  const slashEligibleTokenIds = useMemo(
+    () =>
+      new Set(
+        state.tokens
+          .filter((token) => token.isMarkable && findSlashInsertionPoint(state.tokens, token.id))
+          .map((token) => token.id),
+      ),
+    [state.tokens],
+  );
 
   const timerDisplayState = useMemo<TimerState>(() => {
     if (!state.timerState.isRunning || !state.timerState.lastStartedAt) {
@@ -250,12 +324,26 @@ export default function App() {
       rawText: nextText,
       tokens: buildEmptyAnalysis().tokens,
       markedTokenIds: [],
+      slashAnchorTokenIds: [],
       timerState: createResetTimerState(),
     }));
     queueTextAnalysis(nextText);
   };
 
+  const clearPendingLongPress = () => {
+    if (longPressTimerRef.current !== null) {
+      window.clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    longPressTokenIdRef.current = null;
+  };
+
   const handleToggleToken = (tokenId: string) => {
+    if (suppressNextClickTokenIdRef.current === tokenId) {
+      suppressNextClickTokenIdRef.current = null;
+      return;
+    }
+
     setState((current) => {
       const toggled = toggleMarkedToken(current.markedTokenIds, tokenId);
       return {
@@ -263,6 +351,69 @@ export default function App() {
         markedTokenIds: toggled,
       };
     });
+  };
+
+  const handleToggleSlash = (tokenId: string) => {
+    if (!slashEligibleTokenIds.has(tokenId)) {
+      return;
+    }
+
+    setState((current) => ({
+      ...current,
+      slashAnchorTokenIds: toggleSlashAnchorToken(current.slashAnchorTokenIds, tokenId),
+    }));
+  };
+
+  const handleSlashContextMenu = (
+    event: MouseEvent<HTMLButtonElement>,
+    tokenId: string,
+  ) => {
+    event.preventDefault();
+    clearPendingLongPress();
+    handleToggleSlash(tokenId);
+  };
+
+  const handleSlashPointerStart = (
+    event: PointerEvent<HTMLButtonElement>,
+    tokenId: string,
+  ) => {
+    if ((event.pointerType !== 'touch' && event.pointerType !== 'pen') || !slashEligibleTokenIds.has(tokenId)) {
+      return;
+    }
+
+    clearPendingLongPress();
+    longPressTokenIdRef.current = tokenId;
+    longPressTimerRef.current = window.setTimeout(() => {
+      suppressNextClickTokenIdRef.current = tokenId;
+      handleToggleSlash(tokenId);
+      clearPendingLongPress();
+    }, LONG_PRESS_MS);
+  };
+
+  const handleSlashPointerEnd = (tokenId: string) => {
+    if (longPressTokenIdRef.current !== tokenId) {
+      return;
+    }
+
+    clearPendingLongPress();
+  };
+
+  const handleSlashTouchStart = (
+    event: TouchEvent<HTMLButtonElement>,
+    tokenId: string,
+  ) => {
+    if (!slashEligibleTokenIds.has(tokenId)) {
+      return;
+    }
+
+    event.preventDefault();
+    clearPendingLongPress();
+    longPressTokenIdRef.current = tokenId;
+    longPressTimerRef.current = window.setTimeout(() => {
+      suppressNextClickTokenIdRef.current = tokenId;
+      handleToggleSlash(tokenId);
+      clearPendingLongPress();
+    }, LONG_PRESS_MS);
   };
 
   const handleStartTimer = () => {
@@ -421,7 +572,8 @@ export default function App() {
               </div>
             </div>
             <p className="reader-help">
-              Read naturally and click only the words you do not know.
+              Read naturally and click only the words you do not know. Right-click, or long-press on touch,
+              to place a red slash at the next break.
             </p>
             <div className="reader-surface" aria-live="polite">
               {state.tokens.length ? (
@@ -430,7 +582,14 @@ export default function App() {
                     key={token.id}
                     token={token}
                     isMarked={state.markedTokenIds.includes(token.id)}
+                    slashPlacement={slashLookup.get(token.id)}
+                    canToggleSlash={slashEligibleTokenIds.has(token.id)}
                     onClick={() => handleToggleToken(token.id)}
+                    onToggleSlash={(event) => handleSlashContextMenu(event, token.id)}
+                    onPointerStart={(event) => handleSlashPointerStart(event, token.id)}
+                    onPointerEnd={() => handleSlashPointerEnd(token.id)}
+                    onTouchStart={(event) => handleSlashTouchStart(event, token.id)}
+                    onTouchEnd={() => handleSlashPointerEnd(token.id)}
                   />
                 ))
               ) : isAnalyzing ? (

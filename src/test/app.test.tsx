@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import packageJson from '../../package.json';
 import App from '../App';
@@ -95,6 +95,7 @@ describe('App', () => {
           },
         ],
         markedTokenIds: ['0-0-한국어'],
+        slashAnchorTokenIds: [],
         timerState: {
           baseElapsedMs: 65000,
           elapsedMs: 65000,
@@ -119,6 +120,7 @@ describe('App', () => {
         rawText: '저는 한국어를 공부합니다.',
         tokens: [],
         markedTokenIds: [],
+        slashAnchorTokenIds: [],
         timerState: {
           baseElapsedMs: 0,
           elapsedMs: 0,
@@ -243,5 +245,168 @@ describe('App', () => {
 
     expect(screen.getByText('No unknown words yet.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Copy to Clipboard' })).toBeDisabled();
+  });
+
+  it('toggles a slash on right-click and removes it on repeated right-click', async () => {
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText('Korean text'), {
+      target: { value: '저는 한국어를 공부합니다.' },
+    });
+
+    const token = await screen.findByRole('button', { name: '한국어' });
+    fireEvent.contextMenu(token);
+
+    expect(screen.getByLabelText('Slash break')).toBeInTheDocument();
+
+    fireEvent.contextMenu(token);
+
+    expect(screen.queryByLabelText('Slash break')).not.toBeInTheDocument();
+  });
+
+  it('keeps slash positions when clearing unknown word selections', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText('Korean text'), {
+      target: { value: '저는 한국어를 공부합니다.' },
+    });
+
+    const token = await screen.findByRole('button', { name: '한국어' });
+    fireEvent.contextMenu(token);
+    fireEvent.click(token);
+    fireEvent.click(screen.getByRole('button', { name: 'Clear Selections' }));
+
+    expect(screen.getByLabelText('Slash break')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '한국어' })).not.toHaveClass('reader-token--marked');
+  });
+
+  it('adds a slash after a sentence-final period only when no space follows', async () => {
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText('Korean text'), {
+      target: { value: '많다.' },
+    });
+
+    fireEvent.contextMenu(await screen.findByRole('button', { name: '많다' }));
+
+    const surface = screen.getByText('.');
+    const slash = screen.getByLabelText('Slash break');
+
+    expect(surface.compareDocumentPosition(slash) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('places the slash at the next space instead of right after punctuation when a space exists', async () => {
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText('Korean text'), {
+      target: { value: '많다. 다음' },
+    });
+
+    fireEvent.contextMenu(await screen.findByRole('button', { name: '많다' }));
+
+    const punctuation = screen.getByText('.');
+    const slash = screen.getByLabelText('Slash break');
+    const nextWord = screen.getByRole('button', { name: '다음' });
+
+    expect(punctuation.compareDocumentPosition(slash) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(slash.compareDocumentPosition(nextWord) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('does not add a slash when no break exists before the next content word', async () => {
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText('Korean text'), {
+      target: { value: '읽고다음' },
+    });
+
+    fireEvent.contextMenu(await screen.findByRole('button', { name: '읽고다음' }));
+
+    expect(screen.queryByLabelText('Slash break')).not.toBeInTheDocument();
+  });
+
+  it('toggles a slash on long press without marking the word as unknown', async () => {
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText('Korean text'), {
+      target: { value: '저는 한국어를 공부합니다.' },
+    });
+
+    const token = await screen.findByRole('button', { name: '한국어' });
+    vi.useFakeTimers();
+    fireEvent.touchStart(token);
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+    fireEvent.touchEnd(token);
+    fireEvent.click(token);
+
+    expect(screen.getByLabelText('Slash break')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '한국어' })).not.toHaveClass('reader-token--marked');
+
+    vi.useRealTimers();
+  });
+
+  it('restores persisted slash positions on reload', () => {
+    window.localStorage.setItem(
+      'korean-extensive-reading-tool:v1',
+      JSON.stringify({
+        rawText: '저는 한국어를 공부합니다.',
+        tokens: [
+          {
+            id: '0-0-저',
+            index: 0,
+            text: '저',
+            normalizedSurface: '저',
+            dictionaryForm: '저',
+            pos: 'Noun',
+            posCategory: 'content',
+            isMarkable: true,
+            isWordLike: true,
+            offset: 0,
+            length: 1,
+          },
+          {
+            id: '1-1-는',
+            index: 1,
+            text: '는',
+            normalizedSurface: '는',
+            dictionaryForm: '는',
+            pos: 'Josa',
+            posCategory: 'excluded',
+            isMarkable: false,
+            isWordLike: true,
+            offset: 1,
+            length: 1,
+          },
+          {
+            id: '2-2- ',
+            index: 2,
+            text: ' ',
+            normalizedSurface: ' ',
+            dictionaryForm: ' ',
+            pos: 'Space',
+            posCategory: 'excluded',
+            isMarkable: false,
+            isWordLike: false,
+            offset: 2,
+            length: 1,
+          },
+        ],
+        markedTokenIds: [],
+        slashAnchorTokenIds: ['0-0-저'],
+        timerState: {
+          baseElapsedMs: 0,
+          elapsedMs: 0,
+          isRunning: false,
+          lastStartedAt: null,
+        },
+      }),
+    );
+
+    render(<App />);
+
+    expect(screen.getByLabelText('Slash break')).toBeInTheDocument();
   });
 });

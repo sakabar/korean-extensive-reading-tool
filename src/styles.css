@@ -277,6 +277,14 @@ button {
   white-space: pre-wrap;
 }
 
+.reader-slash {
+  display: inline-block;
+  margin: 0 0.04em;
+  color: #c03123;
+  font-weight: 700;
+  line-height: 1;
+}
+
 .reader-token {
   display: inline;
   margin: 0;
