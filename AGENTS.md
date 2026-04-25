@@ -95,6 +95,10 @@
 ## 実装方針メモ
 - v1 は `React + Vite + TypeScript` の単一画面SPAとして構築する。
 - GitHub Pages はリポジトリ配下サブパス配信を前提にし、`Vite` の `base` は `"/korean-extensive-reading-tool/"` に設定する。
+- GitHub Actions は `CI` / `Versioning` / `Deploy Pages` の 3 workflow に分離する。
+- `CI` は `push` / `pull_request` 時に `npm test` と `npm run build` を自動実行する。
+- `Versioning` は `develop` ブランチで `workflow_dispatch` から `major` / `minor` / `patch` を選んで版数更新し、`main` に入った版数をもとに tag と GitHub Release を確定する。
+- `Deploy Pages` は `main` への push ごとに GitHub Actions 公式の Pages deploy を使って `dist/` を公開する。
 - favicon は `bunbougu_marker.png` を元画像として `public/favicon.ico` と `public/favicon-32x32.png` を配置し、`index.html` から相対参照で読み込む。
 - favicon 用画像は縦横比を維持したまま透明余白付きの正方形に収め、小サイズでもペン先と本体の判別が残るようにする。
 - 韓国語の語彙トークン化と品詞判定は `oktjs` を利用してブラウザ内で完結させる。
@@ -128,4 +132,7 @@
 ## 実施済み検証メモ
 - `npm test` で単体テストとUIテストを通し、未知語集計、進捗計算、永続化、タイマー復元を確認した。
 - `npm run build` で本番ビルドを通し、GitHub Pages 向け `base` 設定込みで静的出力できることを確認した。
+- GitHub Actions の 3 workflow 構成追加後に、ローカルでも `npm test` と `npm run build` が継続して通ることを確認する。
+- `Versioning` は `develop` で manual dispatch し、`main` 反映後に同一 version の tag / Release が二重作成されないことを確認対象とする。
+- `Deploy Pages` は GitHub Pages の公開元を GitHub Actions に設定した上で、`main` push で `dist/` が公開されることを確認対象とする。
 - favicon の生成後に `npm run build` を通し、`dist/` に `favicon.ico` と PNG が出力され、`dist/index.html` から相対参照で解決されることを確認した。
