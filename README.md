@@ -22,8 +22,14 @@ npm test
 npm run build
 ```
 
+## Continuous Integration
+- `CI` runs `npm test` and `npm run build` on every `push` and `pull_request`.
+- `Versioning` supports manual semantic version bumps on `develop`, then creates the tag and GitHub Release after the version reaches `main`.
+- `Deploy Pages` publishes the built `dist/` output to GitHub Pages on every `main` push by using the official Pages deployment actions.
+
 ## Deployment Note
 - `vite.config.ts` uses `base: "/korean-extensive-reading-tool/"` for GitHub Pages repository subpath hosting.
+- GitHub Pages should be configured to deploy from GitHub Actions rather than a `gh-pages` branch.
 
 ## License
 
