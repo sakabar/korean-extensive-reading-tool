@@ -105,6 +105,7 @@
 - favicon 用画像は縦横比を維持したまま透明余白付きの正方形に収め、小サイズでもペン先と本体の判別が残るようにする。
 - 韓国語の語彙トークン化と品詞判定は `oktjs` を利用してブラウザ内で完結させる。
   - `Open Korean Text` 系の解析結果を使い、少なくとも `Josa / Eomi / PreEomi / Conjunction / Modifier / VerbPrefix / Suffix / Space / Punctuation / Others / KoreanParticle` などは除外対象として扱う。
+  - `oktjs` は初期 bundle へ直載せせず、本文解析時に lazy load して専用 chunk に分離する。
 - 状態管理は単一のアプリ状態で扱い、少なくとも以下を `localStorage` に保存する。
   - 生本文
   - 解析済みトークン列
@@ -134,6 +135,7 @@
 ## 実施済み検証メモ
 - `npm test` で単体テストとUIテストを通し、未知語集計、進捗計算、永続化、タイマー復元を確認した。
 - `npm run build` で本番ビルドを通し、GitHub Pages 向け `base` 設定込みで静的出力できることを確認した。
+- `npm run build` で `oktjs` が初期 entry chunk から分離され、chunk size warning が出ないことを確認対象とする。
 - GitHub Actions の 3 workflow 構成追加後に、ローカルでも `npm test` と `npm run build` が継続して通ることを確認する。
 - Node 24 への統一後に、`package.json` の `engines.node` と 3 workflow の `node-version` がすべて 24 系で一致していることを確認する。
 - `Versioning` は `develop` で manual dispatch し、`main` 反映後に同一 version の tag / Release が二重作成されないことを確認対象とする。

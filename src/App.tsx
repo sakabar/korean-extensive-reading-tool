@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   analyzeText,
   buildEmptyAnalysis,
@@ -10,6 +10,7 @@ import {
   loadPersistedState,
   resetReadingState,
   toggleMarkedToken,
+  type LoadedPersistedState,
   type PersistedReadingState,
   type TimerState,
 } from './lib/reading';
@@ -114,10 +115,55 @@ function TokenButton({
 }
 
 export default function App() {
-  const [state, setState] = useState<PersistedReadingState>(() => loadPersistedState());
-  const [draftText, setDraftText] = useState(state.rawText);
-  const [isPending, startTransition] = useTransition();
+  const initialLoad = useRef<LoadedPersistedState | null>(null);
+
+  if (!initialLoad.current) {
+    initialLoad.current = loadPersistedState();
+  }
+
+  const [state, setState] = useState<PersistedReadingState>(() => initialLoad.current.state);
+  const [draftText, setDraftText] = useState(initialLoad.current.state.rawText);
+  const [isAnalyzing, setIsAnalyzing] = useState(initialLoad.current.needsTokenRefresh);
   const [now, setNow] = useState(Date.now());
+  const analysisRequestIdRef = useRef(0);
+
+  const queueTextAnalysis = (nextText: string) => {
+    const requestId = analysisRequestIdRef.current + 1;
+    analysisRequestIdRef.current = requestId;
+
+    if (!nextText.trim()) {
+      setIsAnalyzing(false);
+      return;
+    }
+
+    setIsAnalyzing(true);
+
+    void analyzeText(nextText)
+      .then((analysis) => {
+        if (analysisRequestIdRef.current !== requestId) {
+          return;
+        }
+
+        setState((current) => {
+          if (current.rawText !== nextText) {
+            return current;
+          }
+
+          return {
+            ...current,
+            tokens: analysis.tokens,
+          };
+        });
+        setIsAnalyzing(false);
+      })
+      .catch(() => {
+        if (analysisRequestIdRef.current !== requestId) {
+          return;
+        }
+
+        setIsAnalyzing(false);
+      });
+  };
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -125,6 +171,14 @@ export default function App() {
     }, 1000);
 
     return () => window.clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (!initialLoad.current.needsTokenRefresh || !initialLoad.current.state.rawText.trim()) {
+      return;
+    }
+
+    queueTextAnalysis(initialLoad.current.state.rawText);
   }, []);
 
   useEffect(() => {
@@ -189,17 +243,15 @@ export default function App() {
 
   const applyNewText = (nextText: string) => {
     setDraftText(nextText);
-    startTransition(() => {
-      const analysis = nextText.trim() ? analyzeText(nextText) : buildEmptyAnalysis();
-      setState((current) => ({
-        ...current,
-        rawText: nextText,
-        tokens: analysis.tokens,
-        markedTokenIds: [],
-        lastClickedTokenId: null,
-        timerState: createResetTimerState(),
-      }));
-    });
+    setState((current) => ({
+      ...current,
+      rawText: nextText,
+      tokens: buildEmptyAnalysis().tokens,
+      markedTokenIds: [],
+      lastClickedTokenId: null,
+      timerState: createResetTimerState(),
+    }));
+    queueTextAnalysis(nextText);
   };
 
   const handleToggleToken = (tokenId: string) => {
@@ -322,7 +374,7 @@ export default function App() {
             />
             <p className="input-help">
               Token analysis updates automatically.
-              {isPending ? ' Updating…' : ''}
+              {isAnalyzing ? ' Updating…' : ''}
             </p>
           </section>
 
@@ -357,6 +409,10 @@ export default function App() {
                     onClick={() => handleToggleToken(token.id)}
                   />
                 ))
+              ) : isAnalyzing ? (
+                <div className="empty-state">
+                  Analyzing text...
+                </div>
               ) : (
                 <div className="empty-state">
                   Paste Korean text to start reading.
