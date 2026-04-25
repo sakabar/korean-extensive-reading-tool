@@ -4,11 +4,12 @@ on:
   workflow_dispatch:
     inputs:
       release_type:
-        description: Select the semantic version increment.
+        description: Select the semantic version increment. Runs fail if left on select-bump.
         required: true
         type: choice
-        default: patch
+        default: select-bump
         options:
+          - select-bump
           - patch
           - minor
           - major
@@ -58,10 +59,14 @@ jobs:
           RAW_RELEASE_TYPE_EVENT: ${{ github.event.inputs.release_type }}
           RAW_RELEASE_TYPE_INPUTS: ${{ inputs.release_type }}
         run: |
-          release_type="${RAW_RELEASE_TYPE_EVENT:-${RAW_RELEASE_TYPE_INPUTS:-patch}}"
+          release_type="${RAW_RELEASE_TYPE_INPUTS:-${RAW_RELEASE_TYPE_EVENT:-}}"
 
           case "$release_type" in
             patch|minor|major)
+              ;;
+            ""|select-bump)
+              echo "Select patch, minor, or major before running this workflow."
+              exit 1
               ;;
             *)
               echo "Unsupported release_type: $release_type"
