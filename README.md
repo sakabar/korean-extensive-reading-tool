@@ -29,7 +29,9 @@ npm run build
 
 ## Deployment Note
 - `vite.config.ts` uses `base: "/korean-extensive-reading-tool/"` for GitHub Pages repository subpath hosting.
+- Before the first deployment, open `Settings > Pages` and set `Build and deployment > Source` to `GitHub Actions`.
 - GitHub Pages should be configured to deploy from GitHub Actions rather than a `gh-pages` branch.
+- If `actions/configure-pages` fails with `Get Pages site failed` or `Not Found`, the repository Pages site is usually not enabled yet or the source is still not set to `GitHub Actions`.
 
 ## License
 
