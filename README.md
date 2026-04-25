@@ -2,13 +2,16 @@
 
 Static single-page app for Korean extensive reading practice.
 
+Website: https://sakabar.github.io/korean-extensive-reading-tool/
+
 ## Features
 - Paste one Korean passage and read it token by token
 - Mark unknown content words with one click
 - Exclude particles, endings, and other function words from unknown-word ratios
-- See total words, character count, full-text ratio, and ratio to the last clicked token
 - Track reading time with start, stop, and reset
+- See total words, character count, reading speed and unkown word ratio
 - Restore text, marks, progress, and timer state from `localStorage`
+  - Never send data to servers
 
 ## Development
 ```bash
