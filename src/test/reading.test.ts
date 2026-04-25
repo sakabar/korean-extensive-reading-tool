@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   analyzeText,
   buildClipboardText,
-  buildReadingChunkBreaks,
   computeReadingStats,
   formatDuration,
   groupMarkedTokens,
@@ -45,26 +44,6 @@ describe('analyzeText', () => {
     expect(noun?.isMarkable).toBe(true);
     expect(noun?.posCategory).toBe('content');
     expect(result.tokens.find((item) => item.text === '합니다')?.dictionaryForm).toBe('하다');
-    expect(result.phraseSpans).toEqual(expect.any(Array));
-  });
-});
-
-describe('buildReadingChunkBreaks', () => {
-  it('adds chunk breaks after heuristic phrase boundaries', async () => {
-    const result = await analyzeText('저는 오늘 도서관에 가서 한국어 책을 읽었습니다.');
-    const breakIds = buildReadingChunkBreaks(result.tokens, result.phraseSpans);
-
-    expect(breakIds.has(result.tokens.find((item) => item.text === '가서')?.id ?? '')).toBe(true);
-    expect(breakIds.has(result.tokens.find((item) => item.text === '오늘')?.id ?? '')).toBe(false);
-    expect(breakIds.has(result.tokens.find((item) => item.text === '책')?.id ?? '')).toBe(false);
-  });
-
-  it('keeps auxiliary predicate chains together', async () => {
-    const result = await analyzeText('비가 오면 집에서 책을 읽고 싶어요.');
-    const breakIds = buildReadingChunkBreaks(result.tokens, result.phraseSpans);
-
-    expect(breakIds.has(result.tokens.find((item) => item.text === '오면')?.id ?? '')).toBe(true);
-    expect(breakIds.has(result.tokens.find((item) => item.text === '읽고')?.id ?? '')).toBe(false);
   });
 });
 
@@ -165,7 +144,6 @@ describe('loadPersistedState', () => {
         rawText: '한국어',
         tokens: [token('1', '한국어', 'Noun')],
         markedTokenIds: ['1'],
-        showReadingChunks: true,
         lastClickedTokenId: '1',
         timerState: {
           baseElapsedMs: 5000,
@@ -191,7 +169,6 @@ describe('loadPersistedState', () => {
         rawText: '한국어',
         tokens: [],
         markedTokenIds: ['1'],
-        showReadingChunks: false,
         timerState: {
           baseElapsedMs: 0,
           elapsedMs: 0,
@@ -206,7 +183,6 @@ describe('loadPersistedState', () => {
     expect(restored.state.rawText).toBe('한국어');
     expect(restored.state.tokens).toEqual([]);
     expect(restored.state.markedTokenIds).toEqual([]);
-    expect(restored.state.showReadingChunks).toBe(false);
     expect(restored.needsTokenRefresh).toBe(true);
     vi.useRealTimers();
   });
