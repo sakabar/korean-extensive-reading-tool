@@ -95,6 +95,8 @@
 ## 実装方針メモ
 - v1 は `React + Vite + TypeScript` の単一画面SPAとして構築する。
 - GitHub Pages はリポジトリ配下サブパス配信を前提にし、`Vite` の `base` は `"/korean-extensive-reading-tool/"` に設定する。
+- favicon は `bunbougu_marker.png` を元画像として `public/favicon.ico` と `public/favicon-32x32.png` を配置し、`index.html` から相対参照で読み込む。
+- favicon 用画像は縦横比を維持したまま透明余白付きの正方形に収め、小サイズでもペン先と本体の判別が残るようにする。
 - 韓国語の語彙トークン化と品詞判定は `oktjs` を利用してブラウザ内で完結させる。
   - `Open Korean Text` 系の解析結果を使い、少なくとも `Josa / Eomi / PreEomi / Conjunction / Modifier / VerbPrefix / Suffix / Space / Punctuation / Others / KoreanParticle` などは除外対象として扱う。
 - 状態管理は単一のアプリ状態で扱い、少なくとも以下を `localStorage` に保存する。
@@ -126,3 +128,4 @@
 ## 実施済み検証メモ
 - `npm test` で単体テストとUIテストを通し、未知語集計、進捗計算、永続化、タイマー復元を確認した。
 - `npm run build` で本番ビルドを通し、GitHub Pages 向け `base` 設定込みで静的出力できることを確認した。
+- favicon の生成後に `npm run build` を通し、`dist/` に `favicon.ico` と PNG が出力され、`dist/index.html` から相対参照で解決されることを確認した。

@@ -24,3 +24,9 @@ npm run build
 
 ## Deployment Note
 - `vite.config.ts` uses `base: "/korean-extensive-reading-tool/"` for GitHub Pages repository subpath hosting.
+
+## License
+
+This project is licensed under the MIT License.
+
+The favicon source image `bunbougu_marker.png` and the derived favicon assets in `public/` are excluded from the MIT License.
