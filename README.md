@@ -6,9 +6,9 @@ Static single-page app for Korean extensive reading practice.
 - Paste one Korean passage and read it token by token
 - Mark unknown content words with one click
 - Exclude particles, endings, and other function words from unknown-word ratios
-- See total words, character count, full-text ratio, and ratio to the last clicked token
+- See total words, character count, full-text ratio, and full-text reading speed
 - Track reading time with start, stop, and reset
-- Restore text, marks, progress, and timer state from `localStorage`
+- Restore text, marks, and timer state from `localStorage`
 
 ## Development
 ```bash
