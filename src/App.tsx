@@ -411,8 +411,6 @@ export default function App() {
                 <h2>Click unknown words</h2>
               </div>
               <div className="reader-heading-actions">
-                <span className="legend-chip legend-chip--markable">Clickable</span>
-                <span className="legend-chip legend-chip--marked">Marked</span>
                 <button
                   type="button"
                   className="ghost-button"
