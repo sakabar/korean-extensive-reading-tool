@@ -1,4 +1,4 @@
-import { tokenize } from 'oktjs';
+import { loadOktTokenizer } from './oktTokenizer';
 
 export type PosCategory = 'content' | 'excluded';
 export type KoreanPos = string;
@@ -30,6 +30,11 @@ export type PersistedReadingState = {
   markedTokenIds: string[];
   lastClickedTokenId: string | null;
   timerState: TimerState;
+};
+
+export type LoadedPersistedState = {
+  state: PersistedReadingState;
+  needsTokenRefresh: boolean;
 };
 
 export type ReadingStats = {
@@ -78,6 +83,14 @@ const NON_WORD_POS = new Set<KoreanPos>([
   'Others',
 ]);
 
+type AnalyzedToken = {
+  text: string;
+  pos: KoreanPos;
+  offset: number;
+  length: number;
+  stem?: string;
+};
+
 export function buildEmptyAnalysis(): { tokens: ReadingToken[] } {
   return { tokens: [] };
 }
@@ -105,28 +118,9 @@ export function createResetTimerState(): TimerState {
   };
 }
 
-export function analyzeText(rawText: string): { tokens: ReadingToken[] } {
-  const analyzed = tokenize(rawText);
-  const tokens = analyzed.map((token, index) => {
-    const posCategory: PosCategory = EXCLUDED_POS.has(token.pos) ? 'excluded' : 'content';
-    const isWordLike = !NON_WORD_POS.has(token.pos);
-
-    return {
-      id: createTokenId(index, token.offset, token.text),
-      index,
-      text: token.text,
-      normalizedSurface: normalizeSurface(token),
-      dictionaryForm: buildDictionaryForm(token),
-      pos: token.pos,
-      posCategory,
-      isMarkable: isWordLike && posCategory === 'content',
-      isWordLike,
-      offset: token.offset,
-      length: token.length,
-    };
-  });
-
-  return { tokens };
+export async function analyzeText(rawText: string): Promise<{ tokens: ReadingToken[] }> {
+  const { tokenize } = await loadOktTokenizer();
+  return buildAnalysisFromTokens(tokenize(rawText));
 }
 
 export function computeReadingStats(
@@ -204,46 +198,52 @@ export function toggleMarkedToken(markedTokenIds: string[], tokenId: string): st
     : [...markedTokenIds, tokenId];
 }
 
-export function loadPersistedState(): PersistedReadingState {
+export function loadPersistedState(): LoadedPersistedState {
+  const empty = {
+    state: createEmptyPersistedState(),
+    needsTokenRefresh: false,
+  };
+
   if (typeof window === 'undefined') {
-    return createEmptyPersistedState();
+    return empty;
   }
 
   const raw = window.localStorage.getItem(STORAGE_KEY);
   if (!raw) {
-    return createEmptyPersistedState();
+    return empty;
   }
 
   try {
     const parsed = JSON.parse(raw) as Partial<PersistedReadingState>;
     const base = createEmptyPersistedState();
     const rawText = typeof parsed.rawText === 'string' ? parsed.rawText : '';
-    const tokens =
-      Array.isArray(parsed.tokens) && parsed.tokens.length
-        ? sanitizeTokens(parsed.tokens)
-        : rawText
-          ? analyzeText(rawText).tokens
-          : [];
+    const persistedTokens = Array.isArray(parsed.tokens) && parsed.tokens.length
+      ? sanitizeTokens(parsed.tokens)
+      : [];
     const markedTokenIds = Array.isArray(parsed.markedTokenIds)
       ? parsed.markedTokenIds.filter((value): value is string => typeof value === 'string')
       : [];
     const lastClickedTokenId =
       typeof parsed.lastClickedTokenId === 'string' ? parsed.lastClickedTokenId : null;
     const timerState = restoreTimerState(parsed.timerState);
+    const needsTokenRefresh = Boolean(rawText && !persistedTokens.length);
 
     return {
-      ...base,
-      rawText,
-      tokens,
-      markedTokenIds: markedTokenIds.filter((id) => tokens.some((token) => token.id === id)),
-      lastClickedTokenId:
-        lastClickedTokenId && tokens.some((token) => token.id === lastClickedTokenId)
-          ? lastClickedTokenId
-          : null,
-      timerState,
+      state: {
+        ...base,
+        rawText,
+        tokens: persistedTokens,
+        markedTokenIds: markedTokenIds.filter((id) => persistedTokens.some((token) => token.id === id)),
+        lastClickedTokenId:
+          lastClickedTokenId && persistedTokens.some((token) => token.id === lastClickedTokenId)
+            ? lastClickedTokenId
+            : null,
+        timerState,
+      },
+      needsTokenRefresh,
     };
   } catch {
-    return createEmptyPersistedState();
+    return empty;
   }
 }
 
@@ -254,6 +254,29 @@ export function formatDuration(ms: number): string {
   const seconds = totalSeconds % 60;
 
   return [hours, minutes, seconds].map((value) => String(value).padStart(2, '0')).join(':');
+}
+
+function buildAnalysisFromTokens(analyzed: AnalyzedToken[]): { tokens: ReadingToken[] } {
+  const tokens = analyzed.map((token, index) => {
+    const posCategory: PosCategory = EXCLUDED_POS.has(token.pos) ? 'excluded' : 'content';
+    const isWordLike = !NON_WORD_POS.has(token.pos);
+
+    return {
+      id: createTokenId(index, token.offset, token.text),
+      index,
+      text: token.text,
+      normalizedSurface: normalizeSurface(token),
+      dictionaryForm: buildDictionaryForm(token),
+      pos: token.pos,
+      posCategory,
+      isMarkable: isWordLike && posCategory === 'content',
+      isWordLike,
+      offset: token.offset,
+      length: token.length,
+    };
+  });
+
+  return { tokens };
 }
 
 function sanitizeTokens(tokens: unknown[]): ReadingToken[] {

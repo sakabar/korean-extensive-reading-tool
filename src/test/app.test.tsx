@@ -19,6 +19,7 @@ describe('App', () => {
     fireEvent.change(screen.getByLabelText('Korean text'), {
       target: { value: '저는 한국어를 공부합니다.' },
     });
+    expect(screen.getByText('Analyzing text...')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Start' }));
 
     const token = await screen.findByRole('button', { name: '한국어' });
@@ -104,6 +105,43 @@ describe('App', () => {
     expect(screen.getByText('Reading summary')).toBeInTheDocument();
   });
 
+  it('re-analyzes persisted raw text when stored tokens are missing', async () => {
+    window.localStorage.setItem(
+      'korean-extensive-reading-tool:v1',
+      JSON.stringify({
+        rawText: '저는 한국어를 공부합니다.',
+        tokens: [],
+        markedTokenIds: [],
+        lastClickedTokenId: null,
+        timerState: {
+          baseElapsedMs: 0,
+          elapsedMs: 0,
+          isRunning: false,
+          lastStartedAt: null,
+        },
+      }),
+    );
+
+    render(<App />);
+
+    expect(screen.getByText('Analyzing text...')).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: '한국어' })).toBeInTheDocument();
+  });
+
+  it('keeps only the latest analysis result during fast consecutive input', async () => {
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText('Korean text'), {
+      target: { value: '저는 한국어를 공부합니다.' },
+    });
+    fireEvent.change(screen.getByLabelText('Korean text'), {
+      target: { value: '저는 책을 읽습니다.' },
+    });
+
+    expect(await screen.findByRole('button', { name: '책' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '한국어' })).not.toBeInTheDocument();
+  });
+
   it('uses the same timer reset result for text updates and reset button', async () => {
     render(<App />);
 
@@ -133,8 +171,8 @@ describe('App', () => {
     fireEvent.change(screen.getByLabelText('Korean text'), {
       target: { value: '한국어를 읽고 한국어를 배웁니다.' },
     });
-    fireEvent.click(screen.getAllByRole('button', { name: '한국어' })[0]);
-    fireEvent.click(screen.getByRole('button', { name: '읽고' }));
+    fireEvent.click((await screen.findAllByRole('button', { name: '한국어' }))[0]);
+    fireEvent.click(await screen.findByRole('button', { name: '읽고' }));
 
     fireEvent.click(screen.getByRole('button', { name: 'Copy to Clipboard' }));
 
