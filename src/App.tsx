@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import packageJson from '../package.json';
 import {
   analyzeText,
   buildEmptyAnalysis,
@@ -115,6 +116,7 @@ function TokenButton({
 }
 
 export default function App() {
+  const appVersion = packageJson.version;
   const initialLoad = useRef<LoadedPersistedState | null>(null);
 
   if (!initialLoad.current) {
@@ -545,6 +547,10 @@ export default function App() {
           </section>
         </div>
       </section>
+
+      <p className="app-version" aria-label={`App version ${appVersion}`}>
+        Version {appVersion}
+      </p>
     </main>
   );
 }

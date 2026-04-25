@@ -54,6 +54,14 @@ button {
   padding: 32px 20px 48px;
 }
 
+.app-version {
+  margin: 18px 4px 0;
+  color: var(--muted);
+  font-size: 0.84rem;
+  letter-spacing: 0.03em;
+  text-align: right;
+}
+
 .hero {
   display: block;
   margin-bottom: 28px;
@@ -392,6 +400,10 @@ button {
 @media (max-width: 720px) {
   .app-shell {
     padding: 20px 14px 36px;
+  }
+
+  .app-version {
+    text-align: left;
   }
 
   .panel,
