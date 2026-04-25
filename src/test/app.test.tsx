@@ -74,6 +74,36 @@ describe('App', () => {
     expect(screen.getByText('Grouped unique words')).toBeInTheDocument();
   });
 
+  it('shows slash guides only when reading chunks are enabled', async () => {
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText('Korean text'), {
+      target: { value: '저는 오늘 도서관에 가서 한국어 책을 읽었습니다.' },
+    });
+
+    expect(screen.queryByText('/')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show reading chunks' }));
+
+    expect(await screen.findAllByText('/')).not.toHaveLength(0);
+  });
+
+  it('does not change token interactions or results when slash guides are enabled', async () => {
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText('Korean text'), {
+      target: { value: '저는 한국어를 공부합니다.' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Start' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Show reading chunks' }));
+    fireEvent.click(await screen.findByRole('button', { name: '한국어' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Stop After Reading' }));
+
+    expect(screen.getByRole('button', { name: '한국어' })).toHaveClass('reader-token--marked');
+    expect(screen.getByText('Reading summary')).toBeInTheDocument();
+    expect(screen.getByText('Grouped unique words')).toBeInTheDocument();
+  });
+
   it('restores persisted text, marks, and timer state on reload', () => {
     window.localStorage.setItem(
       'korean-extensive-reading-tool:v1',
@@ -95,6 +125,7 @@ describe('App', () => {
           },
         ],
         markedTokenIds: ['0-0-한국어'],
+        showReadingChunks: true,
         timerState: {
           baseElapsedMs: 65000,
           elapsedMs: 65000,
@@ -108,6 +139,7 @@ describe('App', () => {
 
     expect(screen.getByDisplayValue('한국어')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '한국어' })).toHaveClass('reader-token--marked');
+    expect(screen.getByRole('button', { name: 'Hide reading chunks' })).toBeInTheDocument();
     expect(screen.getByText('00:01:05')).toBeInTheDocument();
     expect(screen.getByText('Reading summary')).toBeInTheDocument();
   });
@@ -119,6 +151,7 @@ describe('App', () => {
         rawText: '저는 한국어를 공부합니다.',
         tokens: [],
         markedTokenIds: [],
+        showReadingChunks: false,
         timerState: {
           baseElapsedMs: 0,
           elapsedMs: 0,

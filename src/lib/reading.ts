@@ -17,6 +17,11 @@ export type ReadingToken = {
   length: number;
 };
 
+export type ReadingPhraseSpan = {
+  startOffset: number;
+  endOffset: number;
+};
+
 export type TimerState = {
   baseElapsedMs: number;
   elapsedMs: number;
@@ -28,6 +33,7 @@ export type PersistedReadingState = {
   rawText: string;
   tokens: ReadingToken[];
   markedTokenIds: string[];
+  showReadingChunks: boolean;
   timerState: TimerState;
 };
 
@@ -90,6 +96,25 @@ type AnalyzedToken = {
   stem?: string;
 };
 
+type AnalyzedPhrase = {
+  offset: number;
+  length: number;
+  text: string;
+  tokens: Array<Pick<AnalyzedToken, 'text' | 'pos' | 'offset' | 'length'>>;
+};
+
+type ReadingEojeol = {
+  firstTokenIndex: number;
+  lastTokenIndex: number;
+  primaryPos: KoreanPos | null;
+  primaryText: string;
+  primarySurface: string;
+  endsWithJosa: boolean;
+  endsWithConnective: boolean;
+  lockWithNext: boolean;
+  sentenceBreakAfter: boolean;
+};
+
 export function buildEmptyAnalysis(): { tokens: ReadingToken[] } {
   return { tokens: [] };
 }
@@ -99,6 +124,7 @@ export function createEmptyPersistedState(): PersistedReadingState {
     rawText: '',
     tokens: [],
     markedTokenIds: [],
+    showReadingChunks: false,
     timerState: createResetTimerState(),
   };
 }
@@ -116,9 +142,77 @@ export function createResetTimerState(): TimerState {
   };
 }
 
-export async function analyzeText(rawText: string): Promise<{ tokens: ReadingToken[] }> {
-  const { tokenize } = await loadOktTokenizer();
-  return buildAnalysisFromTokens(tokenize(rawText));
+export async function analyzeText(rawText: string): Promise<{
+  tokens: ReadingToken[];
+  phraseSpans: ReadingPhraseSpan[];
+}> {
+  const { extractPhrases, tokenize } = await loadOktTokenizer();
+  const analyzedTokens = tokenize(rawText);
+
+  return {
+    ...buildAnalysisFromTokens(analyzedTokens),
+    phraseSpans: buildPhraseSpans(extractPhrases(analyzedTokens)),
+  };
+}
+
+export function buildReadingChunkBreaks(
+  tokens: ReadingToken[],
+  phraseSpans: ReadingPhraseSpan[] = [],
+): Set<string> {
+  const breakIds = new Set<string>();
+  const eojeols = buildEojeols(tokens, phraseSpans);
+  let chunkStartIndex = 0;
+
+  for (let index = 0; index < eojeols.length; index += 1) {
+    const current = eojeols[index];
+    const next = eojeols[index + 1];
+    const chunkLength = index - chunkStartIndex + 1;
+    const currentChunkHasPredicate = eojeols
+      .slice(chunkStartIndex, index + 1)
+      .some((eojeol) => isPredicatePos(eojeol.primaryPos));
+
+    if (!next) {
+      continue;
+    }
+
+    if (current.lockWithNext) {
+      continue;
+    }
+
+    if (current.endsWithConnective && !shouldKeepPredicateChain(current, next)) {
+      breakIds.add(tokens[current.lastTokenIndex].id);
+      chunkStartIndex = index + 1;
+      continue;
+    }
+
+    const weakBoundary = current.endsWithJosa || current.primaryPos === 'Adverb' || current.primaryPos === 'Determiner';
+    const nextIsPredicate = isPredicatePos(next.primaryPos) || next.endsWithConnective;
+
+    if (weakBoundary) {
+      if (nextIsPredicate && !currentChunkHasPredicate && chunkLength < 3) {
+        continue;
+      }
+
+      if (chunkLength >= 2) {
+        breakIds.add(tokens[current.lastTokenIndex].id);
+        chunkStartIndex = index + 1;
+        continue;
+      }
+    }
+
+    if (current.sentenceBreakAfter) {
+      breakIds.add(tokens[current.lastTokenIndex].id);
+      chunkStartIndex = index + 1;
+      continue;
+    }
+
+    if (chunkLength >= 3 && !nextIsPredicate) {
+      breakIds.add(tokens[current.lastTokenIndex].id);
+      chunkStartIndex = index + 1;
+    }
+  }
+
+  return breakIds;
 }
 
 export function computeReadingStats(
@@ -230,6 +324,7 @@ export function loadPersistedState(): LoadedPersistedState {
         rawText,
         tokens: persistedTokens,
         markedTokenIds: markedTokenIds.filter((id) => persistedTokens.some((token) => token.id === id)),
+        showReadingChunks: Boolean(parsed.showReadingChunks),
         timerState,
       },
       needsTokenRefresh,
@@ -269,6 +364,103 @@ function buildAnalysisFromTokens(analyzed: AnalyzedToken[]): { tokens: ReadingTo
   });
 
   return { tokens };
+}
+
+function buildPhraseSpans(phrases: AnalyzedPhrase[]): ReadingPhraseSpan[] {
+  return phrases.flatMap((phrase) => {
+    const wordLikeTokens = phrase.tokens.filter((token) => !NON_WORD_POS.has(token.pos));
+    if (wordLikeTokens.length < 2 || !phrase.text.trim()) {
+      return [];
+    }
+
+    if (wordLikeTokens.some((token) => token.pos === 'Punctuation')) {
+      return [];
+    }
+
+    return [{
+      startOffset: phrase.offset,
+      endOffset: phrase.offset + phrase.length,
+    }];
+  });
+}
+
+function buildEojeols(tokens: ReadingToken[], phraseSpans: ReadingPhraseSpan[]): ReadingEojeol[] {
+  const rawEojeols: ReadingEojeol[] = [];
+  let firstTokenIndex: number | null = null;
+  let lastTokenIndex = -1;
+
+  const flush = (nextIndex: number) => {
+    if (firstTokenIndex === null || lastTokenIndex < firstTokenIndex) {
+      firstTokenIndex = null;
+      lastTokenIndex = -1;
+      return;
+    }
+
+    const slice = tokens.slice(firstTokenIndex, lastTokenIndex + 1);
+    const contentTokens = slice.filter((token) => token.pos !== 'Space' && token.pos !== 'Punctuation');
+    const lastToken = contentTokens.at(-1);
+    const primaryToken = [...contentTokens].reverse().find((token) => token.isWordLike) ?? lastToken ?? null;
+    const betweenText = tokens
+      .slice(lastTokenIndex + 1, nextIndex)
+      .filter((token) => token.pos === 'Punctuation')
+      .map((token) => token.text)
+      .join('');
+
+    rawEojeols.push({
+      firstTokenIndex,
+      lastTokenIndex,
+      primaryPos: primaryToken?.pos ?? null,
+      primaryText: primaryToken?.text ?? '',
+      primarySurface: primaryToken?.dictionaryForm ?? primaryToken?.normalizedSurface ?? '',
+      endsWithJosa: lastToken?.pos === 'Josa',
+      endsWithConnective: isConnectiveEnding(primaryToken?.text ?? ''),
+      lockWithNext: false,
+      sentenceBreakAfter: /[.!?。！？]/.test(betweenText),
+    });
+
+    firstTokenIndex = null;
+    lastTokenIndex = -1;
+  };
+
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index];
+
+    if (token.pos === 'Space' || token.pos === 'Punctuation') {
+      flush(index);
+      continue;
+    }
+
+    if (firstTokenIndex === null) {
+      firstTokenIndex = index;
+    }
+
+    lastTokenIndex = index;
+  }
+
+  flush(tokens.length);
+
+  const tokenIndexToEojeolIndex = new Map<number, number>();
+  rawEojeols.forEach((eojeol, eojeolIndex) => {
+    for (let index = eojeol.firstTokenIndex; index <= eojeol.lastTokenIndex; index += 1) {
+      tokenIndexToEojeolIndex.set(index, eojeolIndex);
+    }
+  });
+
+  for (const span of phraseSpans) {
+    const coveredIndices = tokens
+      .map((token, tokenIndex) => ({ token, tokenIndex }))
+      .filter(({ token }) => token.offset >= span.startOffset && token.offset + token.length <= span.endOffset)
+      .map(({ tokenIndex }) => tokenIndexToEojeolIndex.get(tokenIndex))
+      .filter((value): value is number => value !== undefined);
+
+    const uniqueCovered = [...new Set(coveredIndices)].sort((left, right) => left - right);
+    for (let index = 0; index < uniqueCovered.length - 1; index += 1) {
+      const eojeolIndex = uniqueCovered[index];
+      rawEojeols[eojeolIndex].lockWithNext = true;
+    }
+  }
+
+  return rawEojeols;
 }
 
 function sanitizeTokens(tokens: unknown[]): ReadingToken[] {
@@ -360,6 +552,32 @@ function normalizeSurface(token: { text: string; pos: KoreanPos; stem?: string }
 
   return token.text.toLowerCase();
 }
+
+function isPredicatePos(pos: KoreanPos | null): boolean {
+  return pos === 'Verb' || pos === 'Adjective';
+}
+
+function isConnectiveEnding(text: string): boolean {
+  return /(고|서|며|면|지만|는데|니까|도록|려고|러|면서|더니|자)$/.test(text);
+}
+
+function shouldKeepPredicateChain(current: ReadingEojeol, next: ReadingEojeol): boolean {
+  return current.primaryPos === 'Verb' &&
+    /고$/.test(current.primaryText) &&
+    AUXILIARY_SURFACES.has(next.primarySurface);
+}
+
+const AUXILIARY_SURFACES = new Set([
+  '싶다',
+  '있다',
+  '없다',
+  '않다',
+  '보다',
+  '주다',
+  '되다',
+  '가다',
+  '오다',
+]);
 
 function buildDictionaryForm(token: { text: string; pos: KoreanPos; stem?: string }): string {
   if ((token.pos === 'Verb' || token.pos === 'Adjective') && typeof token.stem === 'string') {

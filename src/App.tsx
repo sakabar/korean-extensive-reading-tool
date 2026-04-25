@@ -4,6 +4,7 @@ import {
   analyzeText,
   buildEmptyAnalysis,
   buildClipboardText,
+  buildReadingChunkBreaks,
   computeReadingStats,
   createResetTimerState,
   formatDuration,
@@ -12,6 +13,7 @@ import {
   resetReadingState,
   toggleMarkedToken,
   type LoadedPersistedState,
+  type ReadingPhraseSpan,
   type PersistedReadingState,
   type TimerState,
 } from './lib/reading';
@@ -125,9 +127,11 @@ export default function App() {
 
   const [state, setState] = useState<PersistedReadingState>(() => initialLoad.current.state);
   const [draftText, setDraftText] = useState(initialLoad.current.state.rawText);
+  const [phraseSpans, setPhraseSpans] = useState<ReadingPhraseSpan[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(initialLoad.current.needsTokenRefresh);
   const [now, setNow] = useState(Date.now());
   const analysisRequestIdRef = useRef(0);
+  const chunkRefreshAttemptedRef = useRef(false);
 
   const queueTextAnalysis = (nextText: string) => {
     const requestId = analysisRequestIdRef.current + 1;
@@ -156,6 +160,8 @@ export default function App() {
             tokens: analysis.tokens,
           };
         });
+        setPhraseSpans(analysis.phraseSpans);
+        chunkRefreshAttemptedRef.current = true;
         setIsAnalyzing(false);
       })
       .catch(() => {
@@ -163,6 +169,8 @@ export default function App() {
           return;
         }
 
+        setPhraseSpans([]);
+        chunkRefreshAttemptedRef.current = true;
         setIsAnalyzing(false);
       });
   };
@@ -182,6 +190,21 @@ export default function App() {
 
     queueTextAnalysis(initialLoad.current.state.rawText);
   }, []);
+
+  useEffect(() => {
+    if (
+      !state.showReadingChunks ||
+      !state.rawText.trim() ||
+      phraseSpans.length ||
+      isAnalyzing ||
+      chunkRefreshAttemptedRef.current
+    ) {
+      return;
+    }
+
+    chunkRefreshAttemptedRef.current = true;
+    queueTextAnalysis(state.rawText);
+  }, [isAnalyzing, phraseSpans.length, state.rawText, state.showReadingChunks]);
 
   useEffect(() => {
     window.localStorage.setItem('korean-extensive-reading-tool:v1', JSON.stringify(state));
@@ -217,6 +240,11 @@ export default function App() {
     [state.tokens, state.markedTokenIds],
   );
 
+  const readingChunkBreaks = useMemo(
+    () => buildReadingChunkBreaks(state.tokens, phraseSpans),
+    [phraseSpans, state.tokens],
+  );
+
   const timerDisplayState = useMemo<TimerState>(() => {
     if (!state.timerState.isRunning || !state.timerState.lastStartedAt) {
       return {
@@ -244,6 +272,7 @@ export default function App() {
   );
 
   const applyNewText = (nextText: string) => {
+    chunkRefreshAttemptedRef.current = false;
     setDraftText(nextText);
     setState((current) => ({
       ...current,
@@ -252,6 +281,7 @@ export default function App() {
       markedTokenIds: [],
       timerState: createResetTimerState(),
     }));
+    setPhraseSpans([]);
     queueTextAnalysis(nextText);
   };
 
@@ -311,7 +341,9 @@ export default function App() {
   };
 
   const handleClearAll = () => {
+    chunkRefreshAttemptedRef.current = false;
     setDraftText('');
+    setPhraseSpans([]);
     setState((current) => ({
       ...resetReadingState(),
       timerState: current.timerState,
@@ -346,6 +378,13 @@ export default function App() {
     setState((current) => ({
       ...current,
       markedTokenIds: [],
+    }));
+  };
+
+  const handleToggleReadingChunks = () => {
+    setState((current) => ({
+      ...current,
+      showReadingChunks: !current.showReadingChunks,
     }));
   };
 
@@ -419,20 +458,31 @@ export default function App() {
                 >
                   Clear Selections
                 </button>
+                <button
+                  type="button"
+                  className={`ghost-button ${state.showReadingChunks ? 'ghost-button--active' : ''}`}
+                  onClick={handleToggleReadingChunks}
+                >
+                  {state.showReadingChunks ? 'Hide reading chunks' : 'Show reading chunks'}
+                </button>
               </div>
             </div>
             <p className="reader-help">
-              Read naturally and click only the words you do not know.
+              Read naturally and click only the words you do not know. Turn on reading chunks to see slash guides.
             </p>
             <div className="reader-surface" aria-live="polite">
               {state.tokens.length ? (
                 state.tokens.map((token) => (
-                  <TokenButton
-                    key={token.id}
-                    token={token}
-                    isMarked={state.markedTokenIds.includes(token.id)}
-                    onClick={() => handleToggleToken(token.id)}
-                  />
+                  <span key={token.id}>
+                    <TokenButton
+                      token={token}
+                      isMarked={state.markedTokenIds.includes(token.id)}
+                      onClick={() => handleToggleToken(token.id)}
+                    />
+                    {state.showReadingChunks && readingChunkBreaks.has(token.id) ? (
+                      <span className="reader-slash" aria-hidden="true"> /</span>
+                    ) : null}
+                  </span>
                 ))
               ) : isAnalyzing ? (
                 <div className="empty-state">
