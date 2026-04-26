@@ -143,20 +143,20 @@ describe('toggleSlashAnchorToken', () => {
 });
 
 describe('cycleContentTokenInteraction', () => {
-  it('cycles content-token state as unknown, unknown+slash, slash, none', () => {
+  it('cycles content-token state as unknown, slash, unknown+slash, none', () => {
     expect(cycleContentTokenInteraction([], [], 'a')).toEqual({
       markedTokenIds: ['a'],
       slashAnchorTokenIds: [],
     });
     expect(cycleContentTokenInteraction(['a'], [], 'a')).toEqual({
-      markedTokenIds: ['a'],
-      slashAnchorTokenIds: ['a'],
-    });
-    expect(cycleContentTokenInteraction(['a'], ['a'], 'a')).toEqual({
       markedTokenIds: [],
       slashAnchorTokenIds: ['a'],
     });
     expect(cycleContentTokenInteraction([], ['a'], 'a')).toEqual({
+      markedTokenIds: ['a'],
+      slashAnchorTokenIds: ['a'],
+    });
+    expect(cycleContentTokenInteraction(['a'], ['a'], 'a')).toEqual({
       markedTokenIds: [],
       slashAnchorTokenIds: [],
     });

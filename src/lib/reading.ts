@@ -233,20 +233,20 @@ export function cycleContentTokenInteraction(
 
   if (isMarked && !hasSlash) {
     return {
-      markedTokenIds,
+      markedTokenIds: markedTokenIds.filter((id) => id !== tokenId),
       slashAnchorTokenIds: [...slashAnchorTokenIds, tokenId],
     };
   }
 
-  if (isMarked && hasSlash) {
+  if (!isMarked && hasSlash) {
     return {
-      markedTokenIds: markedTokenIds.filter((id) => id !== tokenId),
+      markedTokenIds: [...markedTokenIds, tokenId],
       slashAnchorTokenIds,
     };
   }
 
   return {
-    markedTokenIds,
+    markedTokenIds: markedTokenIds.filter((id) => id !== tokenId),
     slashAnchorTokenIds: slashAnchorTokenIds.filter((id) => id !== tokenId),
   };
 }

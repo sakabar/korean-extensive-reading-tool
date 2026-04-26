@@ -265,7 +265,7 @@ describe('App', () => {
     expect(screen.queryByLabelText('Slash break')).not.toBeInTheDocument();
   });
 
-  it('cycles a slash-eligible content word through unknown, unknown+slash, slash, and none', () => {
+  it('cycles a slash-eligible content word through unknown, slash, unknown+slash, and none', () => {
     window.localStorage.setItem(
       'korean-extensive-reading-tool:v1',
       JSON.stringify({
@@ -331,11 +331,11 @@ describe('App', () => {
     expect(screen.queryByLabelText('Slash break')).not.toBeInTheDocument();
 
     fireEvent.click(token);
-    expect(token).toHaveClass('reader-token--marked');
+    expect(token).not.toHaveClass('reader-token--marked');
     expect(screen.getByLabelText('Slash break')).toBeInTheDocument();
 
     fireEvent.click(token);
-    expect(token).not.toHaveClass('reader-token--marked');
+    expect(token).toHaveClass('reader-token--marked');
     expect(screen.getByLabelText('Slash break')).toBeInTheDocument();
 
     fireEvent.click(token);
@@ -530,6 +530,8 @@ describe('App', () => {
 
     expect(screen.getByLabelText('Slash break')).toBeInTheDocument();
 
+    fireEvent.click(nearerToken);
+    fireEvent.click(nearerToken);
     fireEvent.click(nearerToken);
 
     expect(screen.queryByLabelText('Slash break')).not.toBeInTheDocument();
@@ -1041,6 +1043,8 @@ describe('App', () => {
     expect(earlierToken).not.toHaveClass('reader-token--marked');
     expect(screen.getByLabelText('Slash break')).toBeInTheDocument();
 
+    fireEvent.click(nearestToken);
+    fireEvent.click(nearestToken);
     fireEvent.click(nearestToken);
 
     expect(screen.queryByLabelText('Slash break')).not.toBeInTheDocument();
