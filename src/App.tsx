@@ -11,6 +11,7 @@ import {
   buildClipboardText,
   buildSlashInsertionLookup,
   canAnchorSlash,
+  cycleContentTokenInteraction,
   computeReadingStats,
   createResetTimerState,
   findSlashInsertionPoint,
@@ -153,7 +154,7 @@ function TokenButton({
     <button
       type="button"
       className={`reader-token reader-token--interactive ${isMarked ? 'reader-token--marked' : ''}`}
-      onClick={onToggleMarked}
+      onClick={canToggleSlash ? onToggleSlash : onToggleMarked}
     >
       {token.text}
     </button>
@@ -267,7 +268,6 @@ export default function App() {
           .filter(
             (token) =>
               canAnchorSlash(token) &&
-              !token.isMarkable &&
               findSlashInsertionPoint(state.tokens, token.id),
           )
           .map((token) => token.id),
@@ -316,6 +316,20 @@ export default function App() {
 
   const handleToggleToken = (tokenId: string) => {
     setState((current) => {
+      if (slashEligibleTokenIds.has(tokenId)) {
+        const nextState = cycleContentTokenInteraction(
+          current.markedTokenIds,
+          current.slashAnchorTokenIds,
+          tokenId,
+        );
+
+        return {
+          ...current,
+          markedTokenIds: nextState.markedTokenIds,
+          slashAnchorTokenIds: nextState.slashAnchorTokenIds,
+        };
+      }
+
       const toggled = toggleMarkedToken(current.markedTokenIds, tokenId);
       return {
         ...current,
@@ -491,8 +505,8 @@ export default function App() {
               </div>
             </div>
             <p className="reader-help">
-              Click content words to mark unknown vocabulary. Click function words to place a red slash at the
-              next break.
+              Click words to track unknown vocabulary. On words with a later natural break, keep tapping to add or
+              remove a red slash.
             </p>
             <div className="reader-surface" aria-live="polite">
               {state.tokens.length ? (
@@ -504,7 +518,9 @@ export default function App() {
                     slashPlacement={slashLookup.get(token.id)}
                     canToggleSlash={slashEligibleTokenIds.has(token.id)}
                     onToggleMarked={() => handleToggleToken(token.id)}
-                    onToggleSlash={() => handleToggleSlash(token.id)}
+                    onToggleSlash={() =>
+                      token.isMarkable ? handleToggleToken(token.id) : handleToggleSlash(token.id)
+                    }
                   />
                 ))
               ) : isAnalyzing ? (

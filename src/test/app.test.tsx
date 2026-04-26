@@ -265,6 +265,84 @@ describe('App', () => {
     expect(screen.queryByLabelText('Slash break')).not.toBeInTheDocument();
   });
 
+  it('cycles a slash-eligible content word through unknown, unknown+slash, slash, and none', () => {
+    window.localStorage.setItem(
+      'korean-extensive-reading-tool:v1',
+      JSON.stringify({
+        rawText: '읽고 다음',
+        tokens: [
+          {
+            id: '0-0-읽고',
+            index: 0,
+            text: '읽고',
+            normalizedSurface: '읽다',
+            dictionaryForm: '읽다',
+            pos: 'Verb',
+            posCategory: 'content',
+            isMarkable: true,
+            isWordLike: true,
+            offset: 0,
+            length: 2,
+          },
+          {
+            id: '1-2- ',
+            index: 1,
+            text: ' ',
+            normalizedSurface: ' ',
+            dictionaryForm: ' ',
+            pos: 'Space',
+            posCategory: 'excluded',
+            isMarkable: false,
+            isWordLike: false,
+            offset: 2,
+            length: 1,
+          },
+          {
+            id: '2-3-다음',
+            index: 2,
+            text: '다음',
+            normalizedSurface: '다음',
+            dictionaryForm: '다음',
+            pos: 'Noun',
+            posCategory: 'content',
+            isMarkable: true,
+            isWordLike: true,
+            offset: 3,
+            length: 2,
+          },
+        ],
+        markedTokenIds: [],
+        slashAnchorTokenIds: [],
+        timerState: {
+          baseElapsedMs: 0,
+          elapsedMs: 0,
+          isRunning: false,
+          lastStartedAt: null,
+        },
+      }),
+    );
+
+    render(<App />);
+
+    const token = screen.getByRole('button', { name: '읽고' });
+
+    fireEvent.click(token);
+    expect(token).toHaveClass('reader-token--marked');
+    expect(screen.queryByLabelText('Slash break')).not.toBeInTheDocument();
+
+    fireEvent.click(token);
+    expect(token).toHaveClass('reader-token--marked');
+    expect(screen.getByLabelText('Slash break')).toBeInTheDocument();
+
+    fireEvent.click(token);
+    expect(token).not.toHaveClass('reader-token--marked');
+    expect(screen.getByLabelText('Slash break')).toBeInTheDocument();
+
+    fireEvent.click(token);
+    expect(token).not.toHaveClass('reader-token--marked');
+    expect(screen.queryByLabelText('Slash break')).not.toBeInTheDocument();
+  });
+
   it('keeps slash positions when clearing unknown word selections', async () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true);
 
@@ -603,7 +681,7 @@ describe('App', () => {
     expect(screen.queryByLabelText('Slash break')).not.toBeInTheDocument();
   });
 
-  it('does not add a slash when only a content-word click is available at the end', async () => {
+  it('keeps end-of-text content words as unknown-only toggles', async () => {
     render(<App />);
 
     fireEvent.change(screen.getByLabelText('Korean text'), {
@@ -615,6 +693,11 @@ describe('App', () => {
 
     expect(screen.queryByLabelText('Slash break')).not.toBeInTheDocument();
     expect(token).toHaveClass('reader-token--marked');
+
+    fireEvent.click(token);
+
+    expect(screen.queryByLabelText('Slash break')).not.toBeInTheDocument();
+    expect(token).not.toHaveClass('reader-token--marked');
   });
 
   it('restores persisted slash positions on reload', () => {

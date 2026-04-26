@@ -208,6 +208,44 @@ export function toggleSlashAnchorToken(slashAnchorTokenIds: string[], tokenId: s
     : [...slashAnchorTokenIds, tokenId];
 }
 
+export function cycleContentTokenInteraction(
+  markedTokenIds: string[],
+  slashAnchorTokenIds: string[],
+  tokenId: string,
+): {
+  markedTokenIds: string[];
+  slashAnchorTokenIds: string[];
+} {
+  const isMarked = markedTokenIds.includes(tokenId);
+  const hasSlash = slashAnchorTokenIds.includes(tokenId);
+
+  if (!isMarked && !hasSlash) {
+    return {
+      markedTokenIds: [...markedTokenIds, tokenId],
+      slashAnchorTokenIds,
+    };
+  }
+
+  if (isMarked && !hasSlash) {
+    return {
+      markedTokenIds,
+      slashAnchorTokenIds: [...slashAnchorTokenIds, tokenId],
+    };
+  }
+
+  if (isMarked && hasSlash) {
+    return {
+      markedTokenIds: markedTokenIds.filter((id) => id !== tokenId),
+      slashAnchorTokenIds,
+    };
+  }
+
+  return {
+    markedTokenIds,
+    slashAnchorTokenIds: slashAnchorTokenIds.filter((id) => id !== tokenId),
+  };
+}
+
 export function canAnchorSlash(token: ReadingToken | undefined): boolean {
   if (!token) {
     return false;

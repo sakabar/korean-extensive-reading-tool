@@ -4,6 +4,7 @@ import {
   buildClipboardText,
   buildSlashInsertionLookup,
   canAnchorSlash,
+  cycleContentTokenInteraction,
   computeReadingStats,
   findSlashInsertionPoint,
   formatDuration,
@@ -136,6 +137,27 @@ describe('toggleSlashAnchorToken', () => {
   it('adds and removes slash anchor ids', () => {
     expect(toggleSlashAnchorToken([], 'a')).toEqual(['a']);
     expect(toggleSlashAnchorToken(['a'], 'a')).toEqual([]);
+  });
+});
+
+describe('cycleContentTokenInteraction', () => {
+  it('cycles content-token state as unknown, unknown+slash, slash, none', () => {
+    expect(cycleContentTokenInteraction([], [], 'a')).toEqual({
+      markedTokenIds: ['a'],
+      slashAnchorTokenIds: [],
+    });
+    expect(cycleContentTokenInteraction(['a'], [], 'a')).toEqual({
+      markedTokenIds: ['a'],
+      slashAnchorTokenIds: ['a'],
+    });
+    expect(cycleContentTokenInteraction(['a'], ['a'], 'a')).toEqual({
+      markedTokenIds: [],
+      slashAnchorTokenIds: ['a'],
+    });
+    expect(cycleContentTokenInteraction([], ['a'], 'a')).toEqual({
+      markedTokenIds: [],
+      slashAnchorTokenIds: [],
+    });
   });
 });
 
@@ -284,6 +306,7 @@ describe('buildSlashInsertionLookup', () => {
 
 describe('canAnchorSlash', () => {
   it('allows word-like tokens and rejects spaces and punctuation', () => {
+    expect(canAnchorSlash(token('0', '읽', 'Verb'))).toBe(true);
     expect(canAnchorSlash(token('1', '는', 'Josa', { isMarkable: false, posCategory: 'excluded' }))).toBe(true);
     expect(
       canAnchorSlash(
