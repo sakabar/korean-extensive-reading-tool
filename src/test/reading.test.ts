@@ -5,11 +5,13 @@ import {
   buildSlashInsertionLookup,
   canAnchorSlash,
   cycleContentTokenInteraction,
+  findEligibleSlashAnchorTokenIds,
   computeReadingStats,
   findSlashInsertionPoint,
   formatDuration,
   groupMarkedTokens,
   loadPersistedState,
+  normalizeSlashAnchorTokenIds,
   toggleMarkedToken,
   toggleSlashAnchorToken,
   type ReadingToken,
@@ -302,6 +304,62 @@ describe('buildSlashInsertionLookup', () => {
 
     expect(buildSlashInsertionLookup(tokens, ['2'])).toEqual(new Map([['3', 'space']]));
   });
+
+  it('keeps only the nearest anchor when multiple tokens share one break', () => {
+    const tokens = [
+      token('1', '읽', 'Verb'),
+      token('2', '고', 'Eomi', { isMarkable: false, posCategory: 'excluded' }),
+      token('3', '다음', 'Noun'),
+      token('4', ' ', 'Space', {
+        isMarkable: false,
+        posCategory: 'excluded',
+        isWordLike: false,
+      }),
+    ];
+
+    expect(buildSlashInsertionLookup(tokens, ['1', '2', '3'])).toEqual(new Map([['4', 'space']]));
+  });
+});
+
+describe('normalizeSlashAnchorTokenIds', () => {
+  it('drops earlier anchors that collide on the same insertion target', () => {
+    const tokens = [
+      token('1', '읽', 'Verb'),
+      token('2', '고', 'Eomi', { isMarkable: false, posCategory: 'excluded' }),
+      token('3', '다음', 'Noun'),
+      token('4', ' ', 'Space', {
+        isMarkable: false,
+        posCategory: 'excluded',
+        isWordLike: false,
+      }),
+    ];
+
+    expect(normalizeSlashAnchorTokenIds(tokens, ['1', '2', '3'])).toEqual(['3']);
+  });
+});
+
+describe('findEligibleSlashAnchorTokenIds', () => {
+  it('returns only nearest owners for shared slash targets', () => {
+    const tokens = [
+      token('1', '읽', 'Verb'),
+      token('2', '고', 'Eomi', { isMarkable: false, posCategory: 'excluded' }),
+      token('3', '다음', 'Noun'),
+      token('4', ' ', 'Space', {
+        isMarkable: false,
+        posCategory: 'excluded',
+        isWordLike: false,
+      }),
+      token('5', '많', 'Adjective'),
+      token('6', '다', 'Eomi', { isMarkable: false, posCategory: 'excluded' }),
+      token('7', '.', 'Punctuation', {
+        isMarkable: false,
+        posCategory: 'excluded',
+        isWordLike: false,
+      }),
+    ];
+
+    expect(findEligibleSlashAnchorTokenIds(tokens)).toEqual(['3', '6']);
+  });
 });
 
 describe('canAnchorSlash', () => {
@@ -360,7 +418,7 @@ describe('loadPersistedState', () => {
 
     expect(restored.state.timerState.isRunning).toBe(true);
     expect(restored.state.timerState.elapsedMs).toBe(8000);
-    expect(restored.state.slashAnchorTokenIds).toEqual(['1']);
+    expect(restored.state.slashAnchorTokenIds).toEqual([]);
     expect(restored.needsTokenRefresh).toBe(false);
     vi.useRealTimers();
   });
@@ -390,5 +448,36 @@ describe('loadPersistedState', () => {
     expect(restored.state.slashAnchorTokenIds).toEqual([]);
     expect(restored.needsTokenRefresh).toBe(true);
     vi.useRealTimers();
+  });
+
+  it('normalizes legacy overlapping slash anchors on restore', () => {
+    window.localStorage.setItem(
+      'korean-extensive-reading-tool:v1',
+      JSON.stringify({
+        rawText: '읽고다음 문장',
+        tokens: [
+          token('1', '읽', 'Verb'),
+          token('2', '고', 'Eomi', { isMarkable: false, posCategory: 'excluded' }),
+          token('3', '다음', 'Noun'),
+          token('4', ' ', 'Space', {
+            isMarkable: false,
+            posCategory: 'excluded',
+            isWordLike: false,
+          }),
+        ],
+        markedTokenIds: [],
+        slashAnchorTokenIds: ['1', '2', '3'],
+        timerState: {
+          baseElapsedMs: 0,
+          elapsedMs: 0,
+          isRunning: false,
+          lastStartedAt: null,
+        },
+      }),
+    );
+
+    const restored = loadPersistedState();
+
+    expect(restored.state.slashAnchorTokenIds).toEqual(['3']);
   });
 });

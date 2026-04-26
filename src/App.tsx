@@ -13,11 +13,12 @@ import {
   canAnchorSlash,
   cycleContentTokenInteraction,
   computeReadingStats,
+  findEligibleSlashAnchorTokenIds,
   createResetTimerState,
-  findSlashInsertionPoint,
   formatDuration,
   groupMarkedTokens,
   loadPersistedState,
+  normalizeSlashAnchorTokenIds,
   resetReadingState,
   toggleMarkedToken,
   toggleSlashAnchorToken,
@@ -262,16 +263,7 @@ export default function App() {
     [state.slashAnchorTokenIds, state.tokens],
   );
   const slashEligibleTokenIds = useMemo(
-    () =>
-      new Set(
-        state.tokens
-          .filter(
-            (token) =>
-              canAnchorSlash(token) &&
-              findSlashInsertionPoint(state.tokens, token.id),
-          )
-          .map((token) => token.id),
-      ),
+    () => new Set(findEligibleSlashAnchorTokenIds(state.tokens)),
     [state.tokens],
   );
 
@@ -326,7 +318,10 @@ export default function App() {
         return {
           ...current,
           markedTokenIds: nextState.markedTokenIds,
-          slashAnchorTokenIds: nextState.slashAnchorTokenIds,
+          slashAnchorTokenIds: normalizeSlashAnchorTokenIds(
+            current.tokens,
+            nextState.slashAnchorTokenIds,
+          ),
         };
       }
 
@@ -345,7 +340,10 @@ export default function App() {
 
     setState((current) => ({
       ...current,
-      slashAnchorTokenIds: toggleSlashAnchorToken(current.slashAnchorTokenIds, tokenId),
+      slashAnchorTokenIds: normalizeSlashAnchorTokenIds(
+        current.tokens,
+        toggleSlashAnchorToken(current.slashAnchorTokenIds, tokenId),
+      ),
     }));
   };
 
@@ -505,8 +503,8 @@ export default function App() {
               </div>
             </div>
             <p className="reader-help">
-              Click words to track unknown vocabulary. On words with a later natural break, keep tapping to add or
-              remove a red slash.
+              Click words to track unknown vocabulary. When multiple words share one break, the nearest word owns
+              the red slash.
             </p>
             <div className="reader-surface" aria-live="polite">
               {state.tokens.length ? (

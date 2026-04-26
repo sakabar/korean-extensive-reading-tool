@@ -61,6 +61,11 @@ export type SlashInsertionPoint =
   | { type: 'space'; tokenId: string }
   | { type: 'punctuation'; tokenId: string };
 
+type SlashResolution = {
+  normalizedAnchorTokenIds: string[];
+  insertionLookup: Map<string, SlashInsertionPoint['type']>;
+};
+
 const STORAGE_KEY = 'korean-extensive-reading-tool:v1';
 
 const EXCLUDED_POS = new Set<KoreanPos>([
@@ -296,19 +301,62 @@ export function buildSlashInsertionLookup(
   tokens: ReadingToken[],
   slashAnchorTokenIds: string[],
 ): Map<string, SlashInsertionPoint['type']> {
-  const lookup = new Map<string, SlashInsertionPoint['type']>();
+  return resolveSlashAnchors(tokens, slashAnchorTokenIds).insertionLookup;
+}
+
+export function normalizeSlashAnchorTokenIds(
+  tokens: ReadingToken[],
+  slashAnchorTokenIds: string[],
+): string[] {
+  return resolveSlashAnchors(tokens, slashAnchorTokenIds).normalizedAnchorTokenIds;
+}
+
+export function findEligibleSlashAnchorTokenIds(tokens: ReadingToken[]): string[] {
+  return resolveSlashAnchors(
+    tokens,
+    tokens.filter((token) => canAnchorSlash(token)).map((token) => token.id),
+  ).normalizedAnchorTokenIds;
+}
+
+function resolveSlashAnchors(
+  tokens: ReadingToken[],
+  slashAnchorTokenIds: string[],
+): SlashResolution {
+  const tokenIndexLookup = new Map(tokens.map((token, index) => [token.id, index]));
+  const ownership = new Map<string, { anchorTokenId: string; index: number; type: SlashInsertionPoint['type'] }>();
 
   for (const anchorTokenId of slashAnchorTokenIds) {
     const insertionPoint = findSlashInsertionPoint(tokens, anchorTokenId);
+    const anchorIndex = tokenIndexLookup.get(anchorTokenId);
 
-    if (!insertionPoint) {
+    if (!insertionPoint || anchorIndex === undefined) {
       continue;
     }
 
-    lookup.set(insertionPoint.tokenId, insertionPoint.type);
+    const existing = ownership.get(insertionPoint.tokenId);
+
+    if (!existing || anchorIndex > existing.index) {
+      ownership.set(insertionPoint.tokenId, {
+        anchorTokenId,
+        index: anchorIndex,
+        type: insertionPoint.type,
+      });
+    }
   }
 
-  return lookup;
+  const normalizedAnchorTokenIds = [...ownership.values()]
+    .sort((left, right) => left.index - right.index)
+    .map((entry) => entry.anchorTokenId);
+  const insertionLookup = new Map<string, SlashInsertionPoint['type']>();
+
+  for (const [tokenId, entry] of ownership.entries()) {
+    insertionLookup.set(tokenId, entry.type);
+  }
+
+  return {
+    normalizedAnchorTokenIds,
+    insertionLookup,
+  };
 }
 
 export function loadPersistedState(): LoadedPersistedState {
@@ -348,8 +396,9 @@ export function loadPersistedState(): LoadedPersistedState {
         rawText,
         tokens: persistedTokens,
         markedTokenIds: markedTokenIds.filter((id) => persistedTokens.some((token) => token.id === id)),
-        slashAnchorTokenIds: slashAnchorTokenIds.filter((id) =>
-          persistedTokens.some((token) => token.id === id),
+        slashAnchorTokenIds: normalizeSlashAnchorTokenIds(
+          persistedTokens,
+          slashAnchorTokenIds.filter((id) => persistedTokens.some((token) => token.id === id)),
         ),
         timerState,
       },

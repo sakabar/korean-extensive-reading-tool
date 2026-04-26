@@ -343,6 +343,200 @@ describe('App', () => {
     expect(screen.queryByLabelText('Slash break')).not.toBeInTheDocument();
   });
 
+  it('keeps earlier content words as unknown-only when a nearer token owns the same break', () => {
+    window.localStorage.setItem(
+      'korean-extensive-reading-tool:v1',
+      JSON.stringify({
+        rawText: '읽고다음 문장',
+        tokens: [
+          {
+            id: '0-0-읽',
+            index: 0,
+            text: '읽',
+            normalizedSurface: '읽다',
+            dictionaryForm: '읽다',
+            pos: 'Verb',
+            posCategory: 'content',
+            isMarkable: true,
+            isWordLike: true,
+            offset: 0,
+            length: 1,
+          },
+          {
+            id: '1-1-고',
+            index: 1,
+            text: '고',
+            normalizedSurface: '고',
+            dictionaryForm: '고',
+            pos: 'Eomi',
+            posCategory: 'excluded',
+            isMarkable: false,
+            isWordLike: true,
+            offset: 1,
+            length: 1,
+          },
+          {
+            id: '2-2-다음',
+            index: 2,
+            text: '다음',
+            normalizedSurface: '다음',
+            dictionaryForm: '다음',
+            pos: 'Noun',
+            posCategory: 'content',
+            isMarkable: true,
+            isWordLike: true,
+            offset: 2,
+            length: 2,
+          },
+          {
+            id: '3-4- ',
+            index: 3,
+            text: ' ',
+            normalizedSurface: ' ',
+            dictionaryForm: ' ',
+            pos: 'Space',
+            posCategory: 'excluded',
+            isMarkable: false,
+            isWordLike: false,
+            offset: 4,
+            length: 1,
+          },
+          {
+            id: '4-5-문장',
+            index: 4,
+            text: '문장',
+            normalizedSurface: '문장',
+            dictionaryForm: '문장',
+            pos: 'Noun',
+            posCategory: 'content',
+            isMarkable: true,
+            isWordLike: true,
+            offset: 5,
+            length: 2,
+          },
+        ],
+        markedTokenIds: [],
+        slashAnchorTokenIds: ['1-1-고'],
+        timerState: {
+          baseElapsedMs: 0,
+          elapsedMs: 0,
+          isRunning: false,
+          lastStartedAt: null,
+        },
+      }),
+    );
+
+    render(<App />);
+
+    const firstContent = screen.getByRole('button', { name: '읽' });
+
+    fireEvent.click(firstContent);
+    expect(firstContent).toHaveClass('reader-token--marked');
+    expect(screen.getByLabelText('Slash break')).toBeInTheDocument();
+
+    fireEvent.click(firstContent);
+    expect(firstContent).not.toHaveClass('reader-token--marked');
+    expect(screen.getByLabelText('Slash break')).toBeInTheDocument();
+  });
+
+  it('keeps earlier candidates unavailable while a nearer token still exists in the text', () => {
+    window.localStorage.setItem(
+      'korean-extensive-reading-tool:v1',
+      JSON.stringify({
+        rawText: '읽고다음 문장',
+        tokens: [
+          {
+            id: '0-0-읽',
+            index: 0,
+            text: '읽',
+            normalizedSurface: '읽다',
+            dictionaryForm: '읽다',
+            pos: 'Verb',
+            posCategory: 'content',
+            isMarkable: true,
+            isWordLike: true,
+            offset: 0,
+            length: 1,
+          },
+          {
+            id: '1-1-고',
+            index: 1,
+            text: '고',
+            normalizedSurface: '고',
+            dictionaryForm: '고',
+            pos: 'Eomi',
+            posCategory: 'excluded',
+            isMarkable: false,
+            isWordLike: true,
+            offset: 1,
+            length: 1,
+          },
+          {
+            id: '2-2-다음',
+            index: 2,
+            text: '다음',
+            normalizedSurface: '다음',
+            dictionaryForm: '다음',
+            pos: 'Noun',
+            posCategory: 'content',
+            isMarkable: true,
+            isWordLike: true,
+            offset: 2,
+            length: 2,
+          },
+          {
+            id: '3-4- ',
+            index: 3,
+            text: ' ',
+            normalizedSurface: ' ',
+            dictionaryForm: ' ',
+            pos: 'Space',
+            posCategory: 'excluded',
+            isMarkable: false,
+            isWordLike: false,
+            offset: 4,
+            length: 1,
+          },
+          {
+            id: '4-5-문장',
+            index: 4,
+            text: '문장',
+            normalizedSurface: '문장',
+            dictionaryForm: '문장',
+            pos: 'Noun',
+            posCategory: 'content',
+            isMarkable: true,
+            isWordLike: true,
+            offset: 5,
+            length: 2,
+          },
+        ],
+        markedTokenIds: [],
+        slashAnchorTokenIds: ['2-2-다음'],
+        timerState: {
+          baseElapsedMs: 0,
+          elapsedMs: 0,
+          isRunning: false,
+          lastStartedAt: null,
+        },
+      }),
+    );
+
+    render(<App />);
+
+    const nearerToken = screen.getByRole('button', { name: '다음' });
+    expect(screen.queryByRole('button', { name: '고' })).not.toBeInTheDocument();
+    expect(screen.getByText('고')).toHaveClass('reader-token');
+
+    expect(screen.getByLabelText('Slash break')).toBeInTheDocument();
+
+    fireEvent.click(nearerToken);
+
+    expect(screen.queryByLabelText('Slash break')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '고' })).not.toBeInTheDocument();
+    expect(screen.getByText('고')).toHaveClass('reader-token');
+  });
+
   it('keeps slash positions when clearing unknown word selections', async () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true);
 
@@ -607,7 +801,9 @@ describe('App', () => {
 
     render(<App />);
 
-    fireEvent.click(screen.getByRole('button', { name: '고' }));
+    const anchor = screen.getByRole('button', { name: '다음' });
+    fireEvent.click(anchor);
+    fireEvent.click(anchor);
 
     const nextWord = screen.getByRole('button', { name: '다음' });
     const slash = screen.getByLabelText('Slash break');
@@ -760,5 +956,93 @@ describe('App', () => {
     render(<App />);
 
     expect(screen.getByLabelText('Slash break')).toBeInTheDocument();
+  });
+
+  it('drops overlapping persisted slash owners on reload and keeps only the nearest one', () => {
+    window.localStorage.setItem(
+      'korean-extensive-reading-tool:v1',
+      JSON.stringify({
+        rawText: '읽고다음 문장',
+        tokens: [
+          {
+            id: '0-0-읽',
+            index: 0,
+            text: '읽',
+            normalizedSurface: '읽다',
+            dictionaryForm: '읽다',
+            pos: 'Verb',
+            posCategory: 'content',
+            isMarkable: true,
+            isWordLike: true,
+            offset: 0,
+            length: 1,
+          },
+          {
+            id: '1-1-고',
+            index: 1,
+            text: '고',
+            normalizedSurface: '고',
+            dictionaryForm: '고',
+            pos: 'Eomi',
+            posCategory: 'excluded',
+            isMarkable: false,
+            isWordLike: true,
+            offset: 1,
+            length: 1,
+          },
+          {
+            id: '2-2-다음',
+            index: 2,
+            text: '다음',
+            normalizedSurface: '다음',
+            dictionaryForm: '다음',
+            pos: 'Noun',
+            posCategory: 'content',
+            isMarkable: true,
+            isWordLike: true,
+            offset: 2,
+            length: 2,
+          },
+          {
+            id: '3-4- ',
+            index: 3,
+            text: ' ',
+            normalizedSurface: ' ',
+            dictionaryForm: ' ',
+            pos: 'Space',
+            posCategory: 'excluded',
+            isMarkable: false,
+            isWordLike: false,
+            offset: 4,
+            length: 1,
+          },
+        ],
+        markedTokenIds: [],
+        slashAnchorTokenIds: ['0-0-읽', '1-1-고', '2-2-다음'],
+        timerState: {
+          baseElapsedMs: 0,
+          elapsedMs: 0,
+          isRunning: false,
+          lastStartedAt: null,
+        },
+      }),
+    );
+
+    render(<App />);
+
+    const nearestToken = screen.getByRole('button', { name: '다음' });
+    const earlierToken = screen.getByRole('button', { name: '읽' });
+
+    expect(screen.getByLabelText('Slash break')).toBeInTheDocument();
+
+    fireEvent.click(earlierToken);
+    fireEvent.click(earlierToken);
+
+    expect(earlierToken).not.toHaveClass('reader-token--marked');
+    expect(screen.getByLabelText('Slash break')).toBeInTheDocument();
+
+    fireEvent.click(nearestToken);
+
+    expect(screen.queryByLabelText('Slash break')).not.toBeInTheDocument();
   });
 });
