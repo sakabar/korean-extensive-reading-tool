@@ -3,6 +3,7 @@ import {
   analyzeText,
   buildClipboardText,
   buildSlashInsertionLookup,
+  canAnchorSlash,
   computeReadingStats,
   findSlashInsertionPoint,
   formatDuration,
@@ -139,7 +140,7 @@ describe('toggleSlashAnchorToken', () => {
 });
 
 describe('findSlashInsertionPoint', () => {
-  it('places a slash at the next space after functional tokens', () => {
+  it('places a slash at the next space after a function-word anchor', () => {
     const tokens = [
       token('1', '한국어', 'Noun'),
       token('2', '를', 'Josa', { isMarkable: false, posCategory: 'excluded' }),
@@ -152,7 +153,7 @@ describe('findSlashInsertionPoint', () => {
       token('5', '공부', 'Noun'),
     ];
 
-    expect(findSlashInsertionPoint(tokens, '1')).toEqual({
+    expect(findSlashInsertionPoint(tokens, '2')).toEqual({
       type: 'space',
       tokenId: '4',
     });
@@ -169,7 +170,7 @@ describe('findSlashInsertionPoint', () => {
       }),
     ];
 
-    expect(findSlashInsertionPoint(tokens, '1')).toEqual({
+    expect(findSlashInsertionPoint(tokens, '2')).toEqual({
       type: 'punctuation',
       tokenId: '3',
     });
@@ -192,7 +193,7 @@ describe('findSlashInsertionPoint', () => {
       token('5', '다음', 'Noun'),
     ];
 
-    expect(findSlashInsertionPoint(tokens, '1')).toEqual({
+    expect(findSlashInsertionPoint(tokens, '2')).toEqual({
       type: 'space',
       tokenId: '4',
     });
@@ -211,7 +212,7 @@ describe('findSlashInsertionPoint', () => {
       token('5', '문장', 'Noun'),
     ];
 
-    expect(findSlashInsertionPoint(tokens, '1')).toEqual({
+    expect(findSlashInsertionPoint(tokens, '2')).toEqual({
       type: 'space',
       tokenId: '4',
     });
@@ -229,7 +230,7 @@ describe('findSlashInsertionPoint', () => {
       }),
     ];
 
-    expect(findSlashInsertionPoint(tokens, '1')).toEqual({
+    expect(findSlashInsertionPoint(tokens, '2')).toEqual({
       type: 'punctuation',
       tokenId: '4',
     });
@@ -242,7 +243,26 @@ describe('findSlashInsertionPoint', () => {
       token('3', '다음', 'Noun'),
     ];
 
-    expect(findSlashInsertionPoint(tokens, '1')).toBeNull();
+    expect(findSlashInsertionPoint(tokens, '2')).toBeNull();
+  });
+
+  it('returns null for punctuation and space anchors', () => {
+    const tokens = [
+      token('1', '다', 'Eomi', { isMarkable: false, posCategory: 'excluded' }),
+      token('2', '.', 'Punctuation', {
+        isMarkable: false,
+        posCategory: 'excluded',
+        isWordLike: false,
+      }),
+      token('3', ' ', 'Space', {
+        isMarkable: false,
+        posCategory: 'excluded',
+        isWordLike: false,
+      }),
+    ];
+
+    expect(findSlashInsertionPoint(tokens, '2')).toBeNull();
+    expect(findSlashInsertionPoint(tokens, '3')).toBeNull();
   });
 });
 
@@ -258,7 +278,31 @@ describe('buildSlashInsertionLookup', () => {
       }),
     ];
 
-    expect(buildSlashInsertionLookup(tokens, ['1'])).toEqual(new Map([['3', 'space']]));
+    expect(buildSlashInsertionLookup(tokens, ['2'])).toEqual(new Map([['3', 'space']]));
+  });
+});
+
+describe('canAnchorSlash', () => {
+  it('allows word-like tokens and rejects spaces and punctuation', () => {
+    expect(canAnchorSlash(token('1', '는', 'Josa', { isMarkable: false, posCategory: 'excluded' }))).toBe(true);
+    expect(
+      canAnchorSlash(
+        token('2', '.', 'Punctuation', {
+          isMarkable: false,
+          posCategory: 'excluded',
+          isWordLike: false,
+        }),
+      ),
+    ).toBe(false);
+    expect(
+      canAnchorSlash(
+        token('3', ' ', 'Space', {
+          isMarkable: false,
+          posCategory: 'excluded',
+          isWordLike: false,
+        }),
+      ),
+    ).toBe(false);
   });
 });
 

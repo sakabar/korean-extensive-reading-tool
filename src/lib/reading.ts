@@ -208,13 +208,21 @@ export function toggleSlashAnchorToken(slashAnchorTokenIds: string[], tokenId: s
     : [...slashAnchorTokenIds, tokenId];
 }
 
+export function canAnchorSlash(token: ReadingToken | undefined): boolean {
+  if (!token) {
+    return false;
+  }
+
+  return token.isWordLike;
+}
+
 export function findSlashInsertionPoint(
   tokens: ReadingToken[],
   anchorTokenId: string,
 ): SlashInsertionPoint | null {
   const anchorIndex = tokens.findIndex((token) => token.id === anchorTokenId);
 
-  if (anchorIndex === -1 || !tokens[anchorIndex].isMarkable) {
+  if (anchorIndex === -1 || !canAnchorSlash(tokens[anchorIndex])) {
     return null;
   }
 
