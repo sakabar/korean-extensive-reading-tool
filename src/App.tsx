@@ -11,12 +11,14 @@ import {
   buildClipboardText,
   buildSlashInsertionLookup,
   canAnchorSlash,
+  cycleContentTokenInteraction,
   computeReadingStats,
+  findEligibleSlashAnchorTokenIds,
   createResetTimerState,
-  findSlashInsertionPoint,
   formatDuration,
   groupMarkedTokens,
   loadPersistedState,
+  normalizeSlashAnchorTokenIds,
   resetReadingState,
   toggleMarkedToken,
   toggleSlashAnchorToken,
@@ -153,7 +155,7 @@ function TokenButton({
     <button
       type="button"
       className={`reader-token reader-token--interactive ${isMarked ? 'reader-token--marked' : ''}`}
-      onClick={onToggleMarked}
+      onClick={canToggleSlash ? onToggleSlash : onToggleMarked}
     >
       {token.text}
     </button>
@@ -261,17 +263,7 @@ export default function App() {
     [state.slashAnchorTokenIds, state.tokens],
   );
   const slashEligibleTokenIds = useMemo(
-    () =>
-      new Set(
-        state.tokens
-          .filter(
-            (token) =>
-              canAnchorSlash(token) &&
-              !token.isMarkable &&
-              findSlashInsertionPoint(state.tokens, token.id),
-          )
-          .map((token) => token.id),
-      ),
+    () => new Set(findEligibleSlashAnchorTokenIds(state.tokens)),
     [state.tokens],
   );
 
@@ -316,6 +308,23 @@ export default function App() {
 
   const handleToggleToken = (tokenId: string) => {
     setState((current) => {
+      if (slashEligibleTokenIds.has(tokenId)) {
+        const nextState = cycleContentTokenInteraction(
+          current.markedTokenIds,
+          current.slashAnchorTokenIds,
+          tokenId,
+        );
+
+        return {
+          ...current,
+          markedTokenIds: nextState.markedTokenIds,
+          slashAnchorTokenIds: normalizeSlashAnchorTokenIds(
+            current.tokens,
+            nextState.slashAnchorTokenIds,
+          ),
+        };
+      }
+
       const toggled = toggleMarkedToken(current.markedTokenIds, tokenId);
       return {
         ...current,
@@ -331,7 +340,10 @@ export default function App() {
 
     setState((current) => ({
       ...current,
-      slashAnchorTokenIds: toggleSlashAnchorToken(current.slashAnchorTokenIds, tokenId),
+      slashAnchorTokenIds: normalizeSlashAnchorTokenIds(
+        current.tokens,
+        toggleSlashAnchorToken(current.slashAnchorTokenIds, tokenId),
+      ),
     }));
   };
 
@@ -491,8 +503,8 @@ export default function App() {
               </div>
             </div>
             <p className="reader-help">
-              Click content words to mark unknown vocabulary. Click function words to place a red slash at the
-              next break.
+              Click words to track unknown vocabulary. When multiple words share one break, the nearest word owns
+              the red slash.
             </p>
             <div className="reader-surface" aria-live="polite">
               {state.tokens.length ? (
@@ -504,7 +516,9 @@ export default function App() {
                     slashPlacement={slashLookup.get(token.id)}
                     canToggleSlash={slashEligibleTokenIds.has(token.id)}
                     onToggleMarked={() => handleToggleToken(token.id)}
-                    onToggleSlash={() => handleToggleSlash(token.id)}
+                    onToggleSlash={() =>
+                      token.isMarkable ? handleToggleToken(token.id) : handleToggleSlash(token.id)
+                    }
                   />
                 ))
               ) : isAnalyzing ? (
