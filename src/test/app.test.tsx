@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import packageJson from '../../package.json';
 import App from '../App';
@@ -54,8 +54,9 @@ describe('App', () => {
       target: { value: '저는 한국어를 공부합니다.' },
     });
 
-    const excludedToken = await screen.findByText('는');
-    expect(excludedToken).toHaveClass('reader-token');
+    const excludedToken = await screen.findByRole('button', { name: '는' });
+    expect(excludedToken).toHaveClass('reader-token--interactive');
+    expect(excludedToken).not.toHaveClass('reader-token--marked');
     expect(screen.queryByText('Excluded')).not.toBeInTheDocument();
   });
 
@@ -247,19 +248,19 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: 'Copy to Clipboard' })).toBeDisabled();
   });
 
-  it('toggles a slash on right-click and removes it on repeated right-click', async () => {
+  it('toggles a slash on function-word click and removes it on repeated click', async () => {
     render(<App />);
 
     fireEvent.change(screen.getByLabelText('Korean text'), {
       target: { value: '저는 한국어를 공부합니다.' },
     });
 
-    const token = await screen.findByRole('button', { name: '한국어' });
-    fireEvent.contextMenu(token);
+    const token = await screen.findByRole('button', { name: '는' });
+    fireEvent.click(token);
 
     expect(screen.getByLabelText('Slash break')).toBeInTheDocument();
 
-    fireEvent.contextMenu(token);
+    fireEvent.click(token);
 
     expect(screen.queryByLabelText('Slash break')).not.toBeInTheDocument();
   });
@@ -273,9 +274,8 @@ describe('App', () => {
       target: { value: '저는 한국어를 공부합니다.' },
     });
 
-    const token = await screen.findByRole('button', { name: '한국어' });
-    fireEvent.contextMenu(token);
-    fireEvent.click(token);
+    fireEvent.click(await screen.findByRole('button', { name: '는' }));
+    fireEvent.click(screen.getByRole('button', { name: '한국어' }));
     fireEvent.click(screen.getByRole('button', { name: 'Clear Selections' }));
 
     expect(screen.getByLabelText('Slash break')).toBeInTheDocument();
@@ -283,13 +283,65 @@ describe('App', () => {
   });
 
   it('adds a slash after a sentence-final period only when no space follows', async () => {
+    window.localStorage.setItem(
+      'korean-extensive-reading-tool:v1',
+      JSON.stringify({
+        rawText: '많다.',
+        tokens: [
+          {
+            id: '0-0-많',
+            index: 0,
+            text: '많',
+            normalizedSurface: '많다',
+            dictionaryForm: '많다',
+            pos: 'Adjective',
+            posCategory: 'content',
+            isMarkable: true,
+            isWordLike: true,
+            offset: 0,
+            length: 1,
+          },
+          {
+            id: '1-1-다',
+            index: 1,
+            text: '다',
+            normalizedSurface: '다',
+            dictionaryForm: '다',
+            pos: 'Eomi',
+            posCategory: 'excluded',
+            isMarkable: false,
+            isWordLike: true,
+            offset: 1,
+            length: 1,
+          },
+          {
+            id: '2-2-.',
+            index: 2,
+            text: '.',
+            normalizedSurface: '.',
+            dictionaryForm: '.',
+            pos: 'Punctuation',
+            posCategory: 'excluded',
+            isMarkable: false,
+            isWordLike: false,
+            offset: 2,
+            length: 1,
+          },
+        ],
+        markedTokenIds: [],
+        slashAnchorTokenIds: [],
+        timerState: {
+          baseElapsedMs: 0,
+          elapsedMs: 0,
+          isRunning: false,
+          lastStartedAt: null,
+        },
+      }),
+    );
+
     render(<App />);
 
-    fireEvent.change(screen.getByLabelText('Korean text'), {
-      target: { value: '많다.' },
-    });
-
-    fireEvent.contextMenu(await screen.findByRole('button', { name: '많다' }));
+    fireEvent.click(screen.getByRole('button', { name: '다' }));
 
     const surface = screen.getByText('.');
     const slash = screen.getByLabelText('Slash break');
@@ -298,13 +350,91 @@ describe('App', () => {
   });
 
   it('places the slash at the next space instead of right after punctuation when a space exists', async () => {
+    window.localStorage.setItem(
+      'korean-extensive-reading-tool:v1',
+      JSON.stringify({
+        rawText: '많다. 다음',
+        tokens: [
+          {
+            id: '0-0-많',
+            index: 0,
+            text: '많',
+            normalizedSurface: '많다',
+            dictionaryForm: '많다',
+            pos: 'Adjective',
+            posCategory: 'content',
+            isMarkable: true,
+            isWordLike: true,
+            offset: 0,
+            length: 1,
+          },
+          {
+            id: '1-1-다',
+            index: 1,
+            text: '다',
+            normalizedSurface: '다',
+            dictionaryForm: '다',
+            pos: 'Eomi',
+            posCategory: 'excluded',
+            isMarkable: false,
+            isWordLike: true,
+            offset: 1,
+            length: 1,
+          },
+          {
+            id: '2-2-.',
+            index: 2,
+            text: '.',
+            normalizedSurface: '.',
+            dictionaryForm: '.',
+            pos: 'Punctuation',
+            posCategory: 'excluded',
+            isMarkable: false,
+            isWordLike: false,
+            offset: 2,
+            length: 1,
+          },
+          {
+            id: '3-3- ',
+            index: 3,
+            text: ' ',
+            normalizedSurface: ' ',
+            dictionaryForm: ' ',
+            pos: 'Space',
+            posCategory: 'excluded',
+            isMarkable: false,
+            isWordLike: false,
+            offset: 3,
+            length: 1,
+          },
+          {
+            id: '4-4-다음',
+            index: 4,
+            text: '다음',
+            normalizedSurface: '다음',
+            dictionaryForm: '다음',
+            pos: 'Noun',
+            posCategory: 'content',
+            isMarkable: true,
+            isWordLike: true,
+            offset: 4,
+            length: 2,
+          },
+        ],
+        markedTokenIds: [],
+        slashAnchorTokenIds: [],
+        timerState: {
+          baseElapsedMs: 0,
+          elapsedMs: 0,
+          isRunning: false,
+          lastStartedAt: null,
+        },
+      }),
+    );
+
     render(<App />);
 
-    fireEvent.change(screen.getByLabelText('Korean text'), {
-      target: { value: '많다. 다음' },
-    });
-
-    fireEvent.contextMenu(await screen.findByRole('button', { name: '많다' }));
+    fireEvent.click(screen.getByRole('button', { name: '다' }));
 
     const punctuation = screen.getByText('.');
     const slash = screen.getByLabelText('Slash break');
@@ -399,7 +529,7 @@ describe('App', () => {
 
     render(<App />);
 
-    fireEvent.contextMenu(screen.getByRole('button', { name: '읽' }));
+    fireEvent.click(screen.getByRole('button', { name: '고' }));
 
     const nextWord = screen.getByRole('button', { name: '다음' });
     const slash = screen.getByLabelText('Slash break');
@@ -410,37 +540,81 @@ describe('App', () => {
   });
 
   it('does not add a slash when no later space or sentence-final punctuation exists', async () => {
+    window.localStorage.setItem(
+      'korean-extensive-reading-tool:v1',
+      JSON.stringify({
+        rawText: '읽고다음',
+        tokens: [
+          {
+            id: '0-0-읽',
+            index: 0,
+            text: '읽',
+            normalizedSurface: '읽다',
+            dictionaryForm: '읽다',
+            pos: 'Verb',
+            posCategory: 'content',
+            isMarkable: true,
+            isWordLike: true,
+            offset: 0,
+            length: 1,
+          },
+          {
+            id: '1-1-고',
+            index: 1,
+            text: '고',
+            normalizedSurface: '고',
+            dictionaryForm: '고',
+            pos: 'Eomi',
+            posCategory: 'excluded',
+            isMarkable: false,
+            isWordLike: true,
+            offset: 1,
+            length: 1,
+          },
+          {
+            id: '2-2-다음',
+            index: 2,
+            text: '다음',
+            normalizedSurface: '다음',
+            dictionaryForm: '다음',
+            pos: 'Noun',
+            posCategory: 'content',
+            isMarkable: true,
+            isWordLike: true,
+            offset: 2,
+            length: 2,
+          },
+        ],
+        markedTokenIds: [],
+        slashAnchorTokenIds: [],
+        timerState: {
+          baseElapsedMs: 0,
+          elapsedMs: 0,
+          isRunning: false,
+          lastStartedAt: null,
+        },
+      }),
+    );
+
     render(<App />);
 
-    fireEvent.change(screen.getByLabelText('Korean text'), {
-      target: { value: '읽고다음' },
-    });
-
-    fireEvent.contextMenu(await screen.findByRole('button', { name: '읽고다음' }));
-
+    expect(screen.queryByRole('button', { name: '고' })).not.toBeInTheDocument();
+    expect(screen.getByText('고')).toHaveClass('reader-token');
     expect(screen.queryByLabelText('Slash break')).not.toBeInTheDocument();
   });
 
-  it('toggles a slash on long press without marking the word as unknown', async () => {
+  it('does not add a slash when only a content-word click is available at the end', async () => {
     render(<App />);
 
     fireEvent.change(screen.getByLabelText('Korean text'), {
-      target: { value: '저는 한국어를 공부합니다.' },
+      target: { value: '책 다음' },
     });
 
-    const token = await screen.findByRole('button', { name: '한국어' });
-    vi.useFakeTimers();
-    fireEvent.touchStart(token);
-    act(() => {
-      vi.advanceTimersByTime(500);
-    });
-    fireEvent.touchEnd(token);
+    const token = await screen.findByRole('button', { name: '다음' });
     fireEvent.click(token);
 
-    expect(screen.getByLabelText('Slash break')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '한국어' })).not.toHaveClass('reader-token--marked');
-
-    vi.useRealTimers();
+    expect(screen.queryByLabelText('Slash break')).not.toBeInTheDocument();
+    expect(token).toHaveClass('reader-token--marked');
   });
 
   it('restores persisted slash positions on reload', () => {
